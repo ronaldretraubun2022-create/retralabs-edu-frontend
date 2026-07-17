@@ -1,7 +1,7 @@
 {
   "name": "retralabs-edu-frontend",
   "private": true,
-  "version": "1.6.0",
+  "version": "1.7.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -9,6 +9,7 @@
     "test:phase2": "node scripts/phase2-tests.mjs",
     "test:phase3": "node scripts/phase3-tests.mjs",
     "test:phase4": "node scripts/phase4-tests.mjs",
+    "test:phase5": "node scripts/phase5-tests.mjs",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

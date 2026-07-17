@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.0 - 2026-07-18
+
+- Menambahkan shell UI production dengan skip link, konteks halaman, mobile action sheet, dan sidebar sekolah aktif.
+- Menambahkan `uiPreferences` idempotent untuk density, reduced motion, dan konteks halaman tanpa menyentuh data dokumen.
+- Merapikan radius, focus state, empty state, reduced motion, dan responsivitas komponen utama.
+- Mengganti placeholder berlabel AI menjadi template lokal agar tidak membuat AI Assistant atau integrasi backend baru.
+- Menambahkan test Phase 5 untuk migrasi UI, guard label AI, shell mobile, empty state, dan versi 1.7.0.
+
 ## 1.6.0 - 2026-07-18
 
 - Memisahkan print engine, document template, paper config, theme config, dan education level config.

@@ -135,8 +135,8 @@ globalThis.localStorage = {
 
 const { store } = await import('../src/app/store.js');
 const migratedState = store.getState();
-assert.equal(migratedState.appVersion, '1.6.0');
-assert.equal(migratedState.schemaVersion, '1.6.0');
+assert.equal(migratedState.appVersion, '1.7.0');
+assert.equal(migratedState.schemaVersion, '1.7.0');
 assert.equal(migratedState.printSettings.paperSize, defaultPrintSettings.paperSize);
 assert.ok(migratedState.academicCalendarEvents.some((event) => event.id === 'cal-sd-private'));
 assert.equal(new Set(migratedState.academicCalendarEvents.map((event) => event.id)).size, migratedState.academicCalendarEvents.length);

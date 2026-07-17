@@ -15,7 +15,6 @@ const metricCard = ({ label, value, detail, icon, tone = 'brand', trend }) => {
 
   return `
     <article class="metric-card">
-      <div class="absolute -right-10 -top-10 size-28 rounded-full bg-gradient-to-br from-brand-500/10 to-transparent blur-2xl"></div>
       <div class="relative flex items-start justify-between gap-4">
         <div>
           <p class="text-sm font-bold text-slate-500 dark:text-slate-400">${label}</p>
@@ -48,8 +47,6 @@ export const renderDashboard = () => {
     content: `
       <section class="mb-6 overflow-hidden rounded-3xl bg-slate-950 p-6 text-white shadow-2xl shadow-slate-950/20 sm:p-8">
         <div class="relative grid items-center gap-8 lg:grid-cols-[1fr_auto]">
-          <div class="absolute -right-24 -top-24 size-72 rounded-full bg-brand-500/20 blur-3xl"></div>
-          <div class="absolute -bottom-32 left-1/3 size-64 rounded-full bg-accent-500/10 blur-3xl"></div>
           <div class="relative">
             <span class="badge bg-white/10 text-brand-200"><i data-lucide="Sparkles" class="size-3.5"></i>RetraLabs AI Teaching Suite</span>
             <h2 class="mt-4 max-w-3xl text-2xl font-black leading-tight sm:text-3xl lg:text-4xl">Selamat datang, kelola perangkat ajar lebih cepat dan terstruktur.</h2>
@@ -176,7 +173,7 @@ export const renderDashboard = () => {
                   </div>
                   <div class="min-w-0 flex-1">
                     <p class="truncate text-sm font-black text-slate-900 dark:text-white">${item.subject}</p>
-                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">${item.className} · ${item.room}</p>
+                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">${item.className} - ${item.room}</p>
                   </div>
                 </div>
               </div>

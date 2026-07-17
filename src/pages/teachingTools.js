@@ -4,6 +4,7 @@ import { openDocumentEditor } from '../components/documentEditor.js';
 import { curriculumFlow } from '../data/demo.js';
 import { escapeHtml, formatDateTime } from '../utils/format.js';
 import { filterDocumentsBySchool, getActiveSchool, levelTemplateLabel } from '../utils/education.js';
+import { emptyState } from '../utils/productionUi.js';
 import { getDocumentCode, nextActions, statusConfig } from '../utils/workflow.js';
 
 const statusBadge = (status) => {
@@ -63,10 +64,10 @@ export const renderTeachingTools = ({ query = new URLSearchParams() } = {}) => {
         <aside class="space-y-6">
           <article class="panel bg-gradient-to-br from-brand-700 to-brand-950 text-white">
             <span class="grid size-12 place-items-center rounded-2xl bg-white/10"><i data-lucide="Sparkles" class="size-6 text-accent-400"></i></span>
-            <h3 class="mt-5 text-xl font-black">AI Assistant</h3>
-            <p class="mt-2 text-sm leading-6 text-brand-100">Masukkan mata pelajaran, kelas, materi, dan alokasi waktu. AI akan membuat draf yang dapat diedit.</p>
-            <button type="button" data-ai-create class="mt-5 w-full rounded-xl bg-white px-4 py-3 text-sm font-black text-brand-800 transition hover:bg-brand-50">
-              Mulai Generate
+            <h3 class="mt-5 text-xl font-black">Template Cepat</h3>
+            <p class="mt-2 text-sm leading-6 text-brand-100">Buat draf dari alur, kelas, fase, dan mata pelajaran aktif tanpa keluar dari workflow.</p>
+            <button type="button" data-template-create class="mt-5 w-full rounded-lg bg-white px-4 py-3 text-sm font-black text-brand-800 transition hover:bg-brand-50">
+              Buka Editor
             </button>
           </article>
 
@@ -122,13 +123,7 @@ export const renderTeachingTools = ({ query = new URLSearchParams() } = {}) => {
                 </div>
               </div>
             </article>
-          `).join('') || `
-            <div class="md:col-span-2 xl:col-span-3 rounded-2xl border border-dashed border-slate-300 p-10 text-center dark:border-slate-700">
-              <i data-lucide="FilePlus2" class="mx-auto size-10 text-slate-400"></i>
-              <p class="mt-3 font-black">Belum ada dokumen ${selectedType || ''}</p>
-              <p class="mt-1 text-sm text-slate-500">Buat dokumen pertama untuk memulai.</p>
-            </div>
-          `}
+          `).join('') || emptyState({ icon: 'FilePlus2', title: `Belum ada dokumen ${selectedType || ''}`.trim(), description: 'Buat dokumen pertama untuk memulai.' })}
         </div>
       </section>
     `,
@@ -136,7 +131,7 @@ export const renderTeachingTools = ({ query = new URLSearchParams() } = {}) => {
 
   const openNew = (newType = selectedType || 'RPP') => openDocumentEditor({ type: newType });
   document.querySelector('[data-new-tool]')?.addEventListener('click', () => openNew());
-  document.querySelector('[data-ai-create]')?.addEventListener('click', () => openNew());
+  document.querySelector('[data-template-create]')?.addEventListener('click', () => openNew());
   document.querySelectorAll('[data-tool-type]').forEach((button) => button.addEventListener('click', () => openNew(button.dataset.toolType)));
   document.querySelectorAll('[data-edit-document]').forEach((button) => {
     button.addEventListener('click', () => {

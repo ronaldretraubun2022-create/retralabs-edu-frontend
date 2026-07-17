@@ -38,7 +38,7 @@ export const renderLogin = ({ navigate }) => {
 
           <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs dark:border-slate-800 dark:bg-slate-950">
             <p class="font-black">Akun Demo</p>
-            <p class="mt-1 text-slate-500">admin@retralabs.id · retralabs123</p>
+            <p class="mt-1 text-slate-500">admin@retralabs.id - retralabs123</p>
           </div>
         </section>
       </div>

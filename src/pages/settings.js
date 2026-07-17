@@ -4,12 +4,14 @@ import { toast } from '../components/toast.js';
 import { downloadFile, escapeHtml } from '../utils/format.js';
 import { EDUCATION_LEVELS, getActiveSchool } from '../utils/education.js';
 import { marginConfigs, paperConfigs, themeConfigs } from '../utils/printConfig.js';
+import { normalizeUiPreferences } from '../utils/productionUi.js';
 import { renderErrors, required, validateForm } from '../utils/validators.js';
 
 export const renderSettings = () => {
   const state = store.getState();
   const school = getActiveSchool(state);
   const printSettings = state.printSettings || {};
+  const uiPreferences = normalizeUiPreferences(state.uiPreferences || {});
 
   renderLayout({
     path: '/settings',
@@ -81,6 +83,17 @@ export const renderSettings = () => {
                 <p class="mt-3 font-black">Mode Gelap</p>
               </button>
             </div>
+            <form data-ui-preferences-form class="mt-6 space-y-4 border-t border-slate-200 pt-5 dark:border-slate-800">
+              <div class="grid gap-4 sm:grid-cols-2">
+                <label><span class="form-label">Kerapatan Tampilan</span><select name="density" class="form-select"><option value="comfortable" ${uiPreferences.density === 'comfortable' ? 'selected' : ''}>Nyaman</option><option value="compact" ${uiPreferences.density === 'compact' ? 'selected' : ''}>Ringkas</option></select></label>
+                <label><span class="form-label">Konteks Halaman</span><select name="showPageContext" class="form-select"><option value="true" ${uiPreferences.showPageContext ? 'selected' : ''}>Tampilkan</option><option value="false" ${!uiPreferences.showPageContext ? 'selected' : ''}>Sembunyikan</option></select></label>
+              </div>
+              <label class="flex items-center gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+                <input type="checkbox" name="reduceMotion" ${uiPreferences.reduceMotion ? 'checked' : ''} class="size-5 accent-brand-600" />
+                <span><span class="block font-black">Kurangi animasi</span><span class="text-sm text-slate-500">Meminimalkan transisi untuk perangkat rendah daya atau preferensi aksesibilitas.</span></span>
+              </label>
+              <button type="submit" class="btn-primary"><i data-lucide="Save" class="size-4"></i>Simpan Preferensi UI</button>
+            </form>
           </article>
 
           <article data-settings-panel="documents" class="panel hidden">
@@ -178,6 +191,20 @@ export const renderSettings = () => {
     document.querySelectorAll('[data-theme-choice]').forEach((item) => item.classList.toggle('border-brand-500', item === button));
     toast(`Mode ${theme === 'dark' ? 'gelap' : 'terang'} diaktifkan.`, 'info');
   }));
+
+  document.querySelector('[data-ui-preferences-form]').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
+    store.setState({
+      uiPreferences: normalizeUiPreferences({
+        density: formData.density,
+        showPageContext: formData.showPageContext !== 'false',
+        reduceMotion: Boolean(formData.reduceMotion),
+      }),
+    });
+    toast('Preferensi UI berhasil disimpan.', 'success');
+    setTimeout(() => window.dispatchEvent(new Event('hashchange')), 50);
+  });
 
   document.querySelector('[data-print-settings-form]').addEventListener('submit', (event) => {
     event.preventDefault();

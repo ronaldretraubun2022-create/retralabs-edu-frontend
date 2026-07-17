@@ -1,8 +1,8 @@
 import { schoolProfile } from '../data/demo.js';
 import { DEFAULT_SCHOOL_ID, getSubjectCodeForLevel, subjectMasterByLevel } from './education.js';
 
-export const APP_VERSION = '1.6.0';
-export const STORAGE_SCHEMA_VERSION = '1.6.0';
+export const APP_VERSION = '1.7.0';
+export const STORAGE_SCHEMA_VERSION = '1.7.0';
 
 export const documentTypes = ['CP', 'ACP', 'TP', 'ATP', 'PROTA', 'PROSEM', 'RPP', 'MODUL', 'KKTP', 'ASESMEN'];
 

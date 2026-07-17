@@ -2,6 +2,7 @@ import { renderLayout } from '../components/layout.js';
 import { questionBank } from '../data/demo.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { toast } from '../components/toast.js';
+import { emptyState } from '../utils/productionUi.js';
 import { required, validateForm, renderErrors } from '../utils/validators.js';
 
 let questions = [...questionBank];
@@ -80,7 +81,7 @@ export const renderAssessment = () => {
           <button type="button" class="btn-secondary min-h-9 px-3 py-2 text-xs"><i data-lucide="Download" class="size-3.5"></i></button>
         </div>
       </article>
-    `).join('') || `<div class="col-span-full rounded-2xl border border-dashed border-slate-300 p-10 text-center dark:border-slate-700"><i data-lucide="SearchX" class="mx-auto size-10 text-slate-400"></i><p class="mt-3 font-black">Bank soal tidak ditemukan</p></div>`;
+    `).join('') || emptyState({ title: 'Bank soal tidak ditemukan', description: 'Ubah kata kunci atau tambah bank soal baru.' });
     window.dispatchEvent(new CustomEvent('retralabs:icons'));
   };
 
@@ -121,9 +122,9 @@ export const renderAssessment = () => {
         <aside class="space-y-6">
           <article class="panel bg-gradient-to-br from-violet-700 to-slate-950 text-white">
             <span class="grid size-12 place-items-center rounded-2xl bg-white/10"><i data-lucide="Sparkles" class="size-6 text-violet-200"></i></span>
-            <h3 class="mt-5 text-xl font-black">AI Question Generator</h3>
-            <p class="mt-2 text-sm leading-6 text-violet-100">Buat kisi-kisi, soal HOTS, kunci jawaban, dan rubrik penilaian berdasarkan TP.</p>
-            <button type="button" data-generate-question class="mt-5 w-full rounded-xl bg-white px-4 py-3 text-sm font-black text-violet-800 transition hover:bg-violet-50">Generate Soal</button>
+            <h3 class="mt-5 text-xl font-black">Template Kisi-Kisi</h3>
+            <p class="mt-2 text-sm leading-6 text-violet-100">Buat bank soal, kisi-kisi, kunci jawaban, dan rubrik penilaian berdasarkan TP.</p>
+            <button type="button" data-generate-question class="mt-5 w-full rounded-lg bg-white px-4 py-3 text-sm font-black text-violet-800 transition hover:bg-violet-50">Buka Template</button>
           </article>
 
           <article class="panel">
@@ -150,7 +151,7 @@ export const renderAssessment = () => {
   document.querySelector('[data-new-question]').addEventListener('click', () => openQuestionModal(renderList));
   document.querySelector('[data-generate-question]').addEventListener('click', () => {
     openQuestionModal(renderList);
-    toast('Isi parameter soal; integrasi AI siap disambungkan ke backend.', 'info');
+    toast('Isi parameter bank soal untuk membuat template asesmen.', 'info');
   });
   document.querySelector('[data-question-search]').addEventListener('input', (event) => { search = event.target.value; renderList(); });
   renderList();

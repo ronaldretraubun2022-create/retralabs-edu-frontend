@@ -19,6 +19,7 @@
   body {
     min-width: 320px;
     min-height: 100vh;
+    overflow-wrap: break-word;
   }
 
   button,
@@ -54,20 +55,24 @@
     @apply min-h-screen lg:grid lg:grid-cols-[280px_minmax(0,1fr)];
   }
 
+  .skip-link {
+    @apply fixed left-4 top-4 z-[120] -translate-y-20 rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white shadow-2xl transition focus:translate-y-0 dark:bg-white dark:text-slate-950;
+  }
+
   .glass-panel {
     @apply border border-white/60 bg-white/90 shadow-soft backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/85;
   }
 
   .panel {
-    @apply rounded-3xl border border-slate-200/80 bg-white p-5 shadow-soft dark:border-slate-800 dark:bg-slate-900 sm:p-6;
+    @apply rounded-xl border border-slate-200/80 bg-white p-5 shadow-soft dark:border-slate-800 dark:bg-slate-900 sm:p-6;
   }
 
   .panel-muted {
-    @apply rounded-2xl border border-slate-200/70 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/70;
+    @apply rounded-lg border border-slate-200/70 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/70;
   }
 
   .btn {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition duration-200 focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition duration-200 focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-primary {
@@ -83,7 +88,7 @@
   }
 
   .icon-btn {
-    @apply inline-flex size-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-brand-800 dark:hover:bg-brand-950/40 dark:hover:text-brand-300 dark:focus:ring-brand-950;
+    @apply inline-flex size-11 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-brand-800 dark:hover:bg-brand-950/40 dark:hover:text-brand-300 dark:focus:ring-brand-950;
   }
 
   .form-label {
@@ -91,7 +96,7 @@
   }
 
   .form-input {
-    @apply w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-brand-600 dark:focus:ring-brand-950;
+    @apply w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-brand-600 dark:focus:ring-brand-950;
   }
 
   .form-select {
@@ -123,7 +128,7 @@
   }
 
   .nav-link {
-    @apply flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-semibold text-slate-400 transition hover:bg-white/5 hover:text-white;
+    @apply flex items-center gap-3 rounded-lg px-3.5 py-3 text-sm font-semibold text-slate-400 transition hover:bg-white/5 hover:text-white;
   }
 
   .nav-link.active {
@@ -131,11 +136,11 @@
   }
 
   .metric-card {
-    @apply relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-5 shadow-soft transition hover:-translate-y-1 dark:border-slate-800 dark:bg-slate-900;
+    @apply relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-5 shadow-soft transition hover:-translate-y-1 dark:border-slate-800 dark:bg-slate-900;
   }
 
   .table-shell {
-    @apply overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800;
+    @apply overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800;
   }
 
   .table-responsive {
@@ -167,8 +172,32 @@
   }
 
   .mobile-card-row {
-    @apply rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900;
+    @apply rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900;
   }
+
+  .empty-state {
+    @apply col-span-full rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-700;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+:root.reduce-motion *,
+:root.reduce-motion *::before,
+:root.reduce-motion *::after {
+  scroll-behavior: auto !important;
+  animation-duration: .01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .01ms !important;
 }
 
 @media print {

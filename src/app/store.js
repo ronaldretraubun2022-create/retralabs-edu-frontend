@@ -3,6 +3,7 @@ import { APP_VERSION, STORAGE_SCHEMA_VERSION, generateDocumentCode, getDocumentC
 import { DEFAULT_SCHOOL_ID, getActiveSchool, phase2DocumentSeeds, phase3DocumentSeeds, resolveDocumentMasterRefs, schoolSeeds } from '../utils/education.js';
 import { defaultPrintSettings, normalizePrintSettings } from '../utils/printConfig.js';
 import { defaultCalendarEvents, normalizeCalendarEvents } from '../utils/academicCalendar.js';
+import { defaultUiPreferences, normalizeUiPreferences } from '../utils/productionUi.js';
 
 const STORAGE_KEY = 'retralabs-edu-state-v1';
 
@@ -20,6 +21,7 @@ const initialState = {
   activeSemester: schoolProfile.semester,
   printSettings: defaultPrintSettings,
   academicCalendarEvents: defaultCalendarEvents,
+  uiPreferences: defaultUiPreferences,
   draft: null,
 };
 
@@ -134,6 +136,7 @@ const migrateState = (saved = {}) => {
     activeSemester: saved.activeSemester || activeSchool.semester,
     printSettings: normalizePrintSettings(saved.printSettings || initialState.printSettings),
     academicCalendarEvents: normalizeCalendarEvents(saved.academicCalendarEvents || initialState.academicCalendarEvents),
+    uiPreferences: normalizeUiPreferences(saved.uiPreferences || initialState.uiPreferences),
   };
   const migrated = migrateDocuments(merged.documents, {
     seedPhase2: saved.schemaVersion !== STORAGE_SCHEMA_VERSION || saved.appVersion !== APP_VERSION,
@@ -153,6 +156,7 @@ const migrateState = (saved = {}) => {
       saved.activeSchoolId !== activeSchool.id ||
       JSON.stringify(saved.printSettings || {}) !== JSON.stringify(merged.printSettings) ||
       JSON.stringify(saved.academicCalendarEvents || []) !== JSON.stringify(merged.academicCalendarEvents) ||
+      JSON.stringify(saved.uiPreferences || {}) !== JSON.stringify(merged.uiPreferences) ||
       JSON.stringify(saved.schools || []) !== JSON.stringify(schools),
   };
 };

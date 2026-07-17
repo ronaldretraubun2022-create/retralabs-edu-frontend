@@ -195,8 +195,9 @@ const iconRegistry = {
 };
 
 const applyTheme = () => {
-  const { theme } = store.getState();
+  const { theme, uiPreferences = {} } = store.getState();
   document.documentElement.classList.toggle('dark', theme === 'dark');
+  document.documentElement.classList.toggle('reduce-motion', uiPreferences.reduceMotion === true);
   document.documentElement.style.colorScheme = theme;
 };
 
@@ -205,6 +206,7 @@ const refreshIcons = () => {
 };
 
 applyTheme();
+store.subscribe(applyTheme);
 window.addEventListener('retralabs:icons', () => requestAnimationFrame(refreshIcons));
 window.addEventListener('error', (event) => {
   console.error(event.error || event.message);

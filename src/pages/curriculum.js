@@ -8,12 +8,12 @@ import { escapeHtml } from '../utils/format.js';
 import { printAcademicCalendar } from '../utils/printEngine.js';
 
 const phases = [
-  { phase: 'A', classes: 'SD Kelas I–II', color: 'from-sky-500 to-blue-600' },
-  { phase: 'B', classes: 'SD Kelas III–IV', color: 'from-cyan-500 to-teal-600' },
-  { phase: 'C', classes: 'SD Kelas V–VI', color: 'from-emerald-500 to-green-600' },
-  { phase: 'D', classes: 'SMP Kelas VII–IX', color: 'from-amber-500 to-orange-600' },
+  { phase: 'A', classes: 'SD Kelas I-II', color: 'from-sky-500 to-blue-600' },
+  { phase: 'B', classes: 'SD Kelas III-IV', color: 'from-cyan-500 to-teal-600' },
+  { phase: 'C', classes: 'SD Kelas V-VI', color: 'from-emerald-500 to-green-600' },
+  { phase: 'D', classes: 'SMP Kelas VII-IX', color: 'from-amber-500 to-orange-600' },
   { phase: 'E', classes: 'SMA/SMK Kelas X', color: 'from-violet-500 to-purple-600' },
-  { phase: 'F', classes: 'SMA/SMK Kelas XI–XII', color: 'from-rose-500 to-pink-600' },
+  { phase: 'F', classes: 'SMA/SMK Kelas XI-XII', color: 'from-rose-500 to-pink-600' },
 ];
 
 export const renderCurriculum = () => {

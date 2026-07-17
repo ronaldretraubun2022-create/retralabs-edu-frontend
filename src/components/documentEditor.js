@@ -346,8 +346,8 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
         <label class="block">
           <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
             <span class="form-label mb-0">Isi Dokumen <span class="text-rose-500">*</span></span>
-            <button type="button" data-ai-generate class="btn-secondary min-h-9 px-3 py-2 text-xs" ${readonly ? 'disabled' : ''}>
-              <i data-lucide="Sparkles" class="size-4"></i>Generate dengan AI
+            <button type="button" data-template-draft class="btn-secondary min-h-9 px-3 py-2 text-xs" ${readonly ? 'disabled' : ''}>
+              <i data-lucide="Sparkles" class="size-4"></i>Buat Draf Template
             </button>
           </div>
           <textarea name="content" rows="9" class="form-input resize-y" placeholder="Tulis isi dokumen atau buat draf otomatis..." ${readonly ? 'readonly' : ''}>${escapeHtml(initialValues.content)}</textarea>
@@ -688,22 +688,22 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
         renderUnits();
       });
       root.querySelector('[data-save-draft]').addEventListener('click', () => saveDraft(true));
-      root.querySelector('[data-ai-generate]').addEventListener('click', async () => {
+      root.querySelector('[data-template-draft]').addEventListener('click', async () => {
         const data = currentValues();
         if (!data.subject || !data.topic || !data.className) {
           toast('Pilih mata pelajaran, kelas, dan materi terlebih dahulu.', 'warning');
           return;
         }
-        showLoading('AI sedang menyusun draf');
+        showLoading('Template sedang menyusun draf');
         try {
           const result = await mockApi.generateWithAi({ ...data, duration: formatJp(data.totalJp) });
           form.elements.title.value = result.title;
           contentField.value = result.content;
           count.textContent = `${result.content.length} karakter`;
           saveDraft();
-          toast('Draf AI berhasil dibuat.', 'success');
+          toast('Draf template berhasil dibuat.', 'success');
         } catch (error) {
-          toast(error.message || 'AI gagal membuat draf.', 'error');
+          toast(error.message || 'Template gagal membuat draf.', 'error');
         } finally {
           hideLoading();
         }

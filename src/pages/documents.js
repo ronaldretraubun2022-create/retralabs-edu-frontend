@@ -6,6 +6,7 @@ import { toast } from '../components/toast.js';
 import { escapeHtml, formatDateTime } from '../utils/format.js';
 import { filterDocumentsBySchool, getActiveSchool } from '../utils/education.js';
 import { exportDocumentAsWord, exportDocumentJson, printDocument, printDocumentList } from '../utils/printEngine.js';
+import { emptyState } from '../utils/productionUi.js';
 import { buildWorkflowIssues, childDocumentsOf, documentTypes, getDocumentCode, nextActions, statusConfig } from '../utils/workflow.js';
 
 const statusBadge = (status) => {
@@ -19,10 +20,10 @@ const workflowBadge = (issues) => issues.length
 
 const documentActions = (id) => `
   <div class="flex justify-end gap-1">
-    <button type="button" data-action="edit" data-id="${id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Edit"><i data-lucide="Pencil" class="size-4"></i></button>
-    <button type="button" data-action="continue" data-id="${id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Lanjutkan tahap"><i data-lucide="GitBranchPlus" class="size-4"></i></button>
-    <button type="button" data-action="export" data-id="${id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Export Word"><i data-lucide="Download" class="size-4"></i></button>
-    <button type="button" data-action="more" data-id="${id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Tindakan lain"><i data-lucide="Ellipsis" class="size-4"></i></button>
+    <button type="button" data-action="edit" data-id="${id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Edit" aria-label="Edit dokumen"><i data-lucide="Pencil" class="size-4"></i></button>
+    <button type="button" data-action="continue" data-id="${id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Lanjutkan tahap" aria-label="Lanjutkan tahap dokumen"><i data-lucide="GitBranchPlus" class="size-4"></i></button>
+    <button type="button" data-action="export" data-id="${id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Export Word" aria-label="Export Word"><i data-lucide="Download" class="size-4"></i></button>
+    <button type="button" data-action="more" data-id="${id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Tindakan lain" aria-label="Tindakan dokumen lain"><i data-lucide="Ellipsis" class="size-4"></i></button>
   </div>
 `;
 
@@ -209,7 +210,7 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
         </tr>
       `;
     }).join('') : `
-      <tr><td colspan="6"><div class="py-12 text-center"><i data-lucide="SearchX" class="mx-auto size-10 text-slate-400"></i><p class="mt-3 font-black">Dokumen tidak ditemukan</p><p class="mt-1 text-sm text-slate-500">Ubah kata kunci atau filter pencarian.</p></div></td></tr>
+      <tr><td colspan="6">${emptyState({ title: 'Dokumen tidak ditemukan', description: 'Ubah kata kunci atau filter pencarian.' })}</td></tr>
     `;
 
     mobileList.innerHTML = documents.length ? documents.map((item) => {
@@ -236,7 +237,7 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
           </div>
         </article>
       `;
-    }).join('') : `<div class="rounded-2xl border border-dashed border-slate-300 p-10 text-center dark:border-slate-700"><p class="font-black">Dokumen tidak ditemukan</p></div>`;
+    }).join('') : emptyState({ title: 'Dokumen tidak ditemukan', description: 'Ubah kata kunci atau filter pencarian.' });
 
     bindActions(renderRows);
     window.dispatchEvent(new CustomEvent('retralabs:icons'));

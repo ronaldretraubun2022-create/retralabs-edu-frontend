@@ -2,7 +2,7 @@
 
 Frontend SaaS modern untuk administrasi guru dan perangkat ajar Kurikulum Merdeka. Dibangun dengan Vite, Tailwind CSS, Vanilla JavaScript, Chart.js, Lucide Icons, dan localStorage.
 
-Versi aplikasi: 1.6.0
+Versi aplikasi: 1.7.0
 
 ## Fitur Utama
 
@@ -25,7 +25,8 @@ Versi aplikasi: 1.6.0
 - Print engine terpisah dengan template per jenis dokumen dan jenjang.
 - Export Word/JSON, print PDF via browser, ukuran A4/F4, orientasi otomatis portrait/landscape, dan tema cetak.
 - Kalender Pendidikan modern per sekolah aktif, jenjang, tahun ajaran, dan semester.
-- Dark mode, responsive layout, toast, validasi field, dan autosave.
+- Shell production dengan skip link, konteks halaman, mobile action sheet, preferensi density, dan reduced motion.
+- Dark mode, responsive layout, toast, validasi field, empty state konsisten, dan autosave.
 
 ## Stack
 
@@ -56,8 +57,18 @@ src/
     documentTemplates.js
     printConfig.js
     printEngine.js
+    productionUi.js
     workflow.js
 ```
+
+## Migrasi 1.7.0
+
+Migrasi v1.6.0 ke v1.7.0 berjalan otomatis dan idempotent.
+
+- Menambahkan `uiPreferences` default tanpa mengubah dokumen, sekolah, kalender, atau print settings.
+- Preferensi UI mencakup density, reduced motion, dan konteks halaman.
+- Shell aplikasi diperkuat untuk desktop, tablet, mobile, dan aksesibilitas dasar.
+- Data localStorage pengguna tetap aman dan tidak dihapus.
 
 ## Migrasi 1.6.0
 
@@ -142,6 +153,14 @@ npm run test:phase4
 ```
 
 Test mencakup konfigurasi A4/F4, orientasi print, template dokumen per jenjang, filter kalender, dan migrasi v1.5.0 ke v1.6.0.
+
+## Test Phase 5
+
+```bash
+npm run test:phase5
+```
+
+Test mencakup migrasi UI preference, shell production, mobile actions, reduced motion, empty state, versi 1.7.0, dan guard label AI.
 
 ## Akun Demo
 
