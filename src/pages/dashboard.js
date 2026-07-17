@@ -2,7 +2,8 @@ import Chart from 'chart.js/auto';
 import { store } from '../app/store.js';
 import { renderLayout } from '../components/layout.js';
 import { openDocumentEditor } from '../components/documentEditor.js';
-import { activities, schedule, schoolProfile } from '../data/demo.js';
+import { activities, schedule } from '../data/demo.js';
+import { filterDocumentsBySchool, getActiveSchool, levelTemplateLabel } from '../utils/education.js';
 
 const metricCard = ({ label, value, detail, icon, tone = 'brand', trend }) => {
   const toneClasses = {
@@ -34,14 +35,16 @@ const metricCard = ({ label, value, detail, icon, tone = 'brand', trend }) => {
 
 export const renderDashboard = () => {
   const state = store.getState();
-  const approved = state.documents.filter((document) => document.status === 'approved').length;
-  const review = state.documents.filter((document) => ['review', 'revision'].includes(document.status)).length;
-  const averageProgress = Math.round(state.documents.reduce((total, document) => total + document.progress, 0) / Math.max(state.documents.length, 1));
+  const activeSchool = getActiveSchool(state);
+  const activeDocuments = filterDocumentsBySchool(state.documents, activeSchool.id);
+  const approved = activeDocuments.filter((document) => document.status === 'approved').length;
+  const review = activeDocuments.filter((document) => ['review', 'revision'].includes(document.status)).length;
+  const averageProgress = Math.round(activeDocuments.reduce((total, document) => total + document.progress, 0) / Math.max(activeDocuments.length, 1));
 
   renderLayout({
     path: '/dashboard',
     title: 'Dashboard Operasional',
-    subtitle: `${schoolProfile.name} · ${schoolProfile.semester}`,
+    subtitle: `${activeSchool.name} - ${activeSchool.semester}`,
     content: `
       <section class="mb-6 overflow-hidden rounded-3xl bg-slate-950 p-6 text-white shadow-2xl shadow-slate-950/20 sm:p-8">
         <div class="relative grid items-center gap-8 lg:grid-cols-[1fr_auto]">
@@ -50,7 +53,7 @@ export const renderDashboard = () => {
           <div class="relative">
             <span class="badge bg-white/10 text-brand-200"><i data-lucide="Sparkles" class="size-3.5"></i>RetraLabs AI Teaching Suite</span>
             <h2 class="mt-4 max-w-3xl text-2xl font-black leading-tight sm:text-3xl lg:text-4xl">Selamat datang, kelola perangkat ajar lebih cepat dan terstruktur.</h2>
-            <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">Mulai dari CP, ACP, TP, ATP, PROTA, PROSEM, RPP, Modul Ajar, KKTP hingga asesmen dalam satu alur kerja.</p>
+            <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">${levelTemplateLabel(activeSchool)} Workflow CP sampai asesmen mengikuti sekolah aktif.</p>
             <div class="mt-6 flex flex-col gap-3 sm:flex-row">
               <button type="button" data-create-document class="btn-primary">
                 <i data-lucide="Plus" class="size-4"></i>
@@ -69,14 +72,14 @@ export const renderDashboard = () => {
                 <i data-lucide="GraduationCap" class="size-10"></i>
               </div>
               <p class="mt-4 text-sm font-black">Kurikulum Merdeka</p>
-              <p class="mt-1 text-xs text-slate-400">Tahun Ajaran 2026/2027</p>
+              <p class="mt-1 text-xs text-slate-400">Tahun Ajaran ${activeSchool.academicYear}</p>
             </div>
           </div>
         </div>
       </section>
 
       <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        ${metricCard({ label: 'Total Dokumen', value: state.documents.length, detail: 'seluruh perangkat', icon: 'Files', tone: 'brand', trend: '+12%' })}
+        ${metricCard({ label: 'Total Dokumen', value: activeDocuments.length, detail: activeSchool.educationLevel, icon: 'Files', tone: 'brand', trend: '+12%' })}
         ${metricCard({ label: 'Dokumen Disetujui', value: approved, detail: 'siap digunakan', icon: 'BadgeCheck', tone: 'green' })}
         ${metricCard({ label: 'Perlu Tindakan', value: review, detail: 'revisi / review', icon: 'Clock3', tone: 'amber' })}
         ${metricCard({ label: 'Progress Semester', value: `${averageProgress}%`, detail: 'target perangkat', icon: 'ChartNoAxesCombined', tone: 'violet' })}

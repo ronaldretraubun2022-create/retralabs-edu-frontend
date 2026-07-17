@@ -1,8 +1,13 @@
-import { currentUser, schoolProfile } from '../data/demo.js';
+import { currentUser } from '../data/demo.js';
 import { store } from '../app/store.js';
+import { getActiveSchool } from '../utils/education.js';
 import { toast } from './toast.js';
 
-export const topbarTemplate = ({ title, subtitle }) => `
+export const topbarTemplate = ({ title, subtitle }) => {
+  const state = store.getState();
+  const activeSchool = getActiveSchool(state);
+  const schools = state.schools || [];
+  return `
   <header class="sticky top-0 z-30 border-b border-slate-200/80 bg-slate-100/85 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/85">
     <div class="flex min-h-20 items-center gap-3 px-4 sm:px-6 xl:px-8">
       <button type="button" data-sidebar-open class="icon-btn lg:hidden" aria-label="Buka sidebar">
@@ -11,15 +16,19 @@ export const topbarTemplate = ({ title, subtitle }) => `
 
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2 text-xs font-bold text-brand-600 dark:text-brand-400">
-          <span>${schoolProfile.level}</span>
+          <span>${activeSchool.educationLevel}</span>
           <span class="text-slate-300 dark:text-slate-700">/</span>
-          <span>${schoolProfile.academicYear}</span>
+          <span>${activeSchool.academicYear}</span>
         </div>
         <h1 class="truncate text-lg font-black tracking-tight text-slate-950 dark:text-white sm:text-xl">${title}</h1>
         ${subtitle ? `<p class="hidden truncate text-xs text-slate-500 sm:block dark:text-slate-400">${subtitle}</p>` : ''}
       </div>
 
       <div class="hidden items-center gap-2 md:flex">
+        <select data-school-switcher class="form-select w-56 text-xs" aria-label="Pilih sekolah aktif">
+          ${schools.map((school) => `<option value="${school.id}" ${school.id === activeSchool.id ? 'selected' : ''}>${school.educationLevel} - ${school.name}</option>`).join('')}
+        </select>
+
         <label class="relative hidden xl:block">
           <i data-lucide="Search" class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400"></i>
           <input data-global-search type="search" class="form-input w-64 pl-10" placeholder="Cari dokumen, mata pelajaran..." />
@@ -50,6 +59,7 @@ export const topbarTemplate = ({ title, subtitle }) => `
     </div>
   </header>
 `;
+};
 
 export const bindTopbar = () => {
   const applyTheme = (theme) => {
@@ -62,6 +72,12 @@ export const bindTopbar = () => {
     store.setState({ theme: nextTheme });
     applyTheme(nextTheme);
     toast(`Mode ${nextTheme === 'dark' ? 'gelap' : 'terang'} diaktifkan.`, 'info');
+  });
+
+  document.querySelector('[data-school-switcher]')?.addEventListener('change', (event) => {
+    store.switchSchool(event.currentTarget.value);
+    toast('Sekolah aktif berhasil diganti.', 'success');
+    setTimeout(() => window.dispatchEvent(new Event('hashchange')), 50);
   });
 
   document.querySelector('[data-notification-button]')?.addEventListener('click', () => {

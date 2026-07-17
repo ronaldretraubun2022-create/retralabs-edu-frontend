@@ -1,12 +1,19 @@
 export const schoolProfile = {
+  id: 'school-smk-merauke',
   name: 'SMK Negeri 5 Agribisnis dan Agroteknologi Merauke',
   npsn: '69999999',
   level: 'SMK',
+  educationLevel: 'SMK',
   address: 'Merauke, Papua Selatan',
   principal: 'Maria Yosefa, S.Pd., M.Pd.',
   principalNip: '197905122006042001',
   academicYear: '2026/2027',
   semester: 'Ganjil',
+  expertiseField: 'Agribisnis dan Agroteknologi',
+  expertiseProgram: 'Agribisnis Tanaman',
+  expertiseConcentration: 'Agribisnis Tanaman Perkebunan',
+  industryPartners: ['PT Perkebunan Papua Selatan', 'Balai Pelatihan Pertanian Merauke'],
+  certifications: ['Sertifikasi Kompetensi Budidaya Tanaman', 'UKK Agribisnis Tanaman'],
 };
 
 export const currentUser = {

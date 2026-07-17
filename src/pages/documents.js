@@ -4,6 +4,7 @@ import { openDocumentEditor } from '../components/documentEditor.js';
 import { closeModal, openModal } from '../components/modal.js';
 import { toast } from '../components/toast.js';
 import { downloadFile, escapeHtml, formatDateTime, slugify } from '../utils/format.js';
+import { filterDocumentsBySchool, getActiveSchool } from '../utils/education.js';
 import { buildWorkflowIssues, childDocumentsOf, documentTypes, getDocumentCode, nextActions, statusConfig } from '../utils/workflow.js';
 
 const statusBadge = (status) => {
@@ -175,7 +176,9 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
   };
 
   const renderRows = () => {
-    const allDocuments = store.getState().documents;
+    const state = store.getState();
+    const activeSchool = getActiveSchool(state);
+    const allDocuments = filterDocumentsBySchool(state.documents, activeSchool.id);
     const documents = allDocuments.filter((item) => {
       const keyword = search.toLowerCase();
       const matchesSearch = !keyword || [item.title, item.subject, item.className, item.type, getDocumentCode(item)].some((value) => String(value).toLowerCase().includes(keyword));
@@ -256,7 +259,7 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
       <section class="panel">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <p class="text-xs font-black uppercase tracking-wider text-brand-600 dark:text-brand-400">Perangkat Ajar / Dokumen</p>
+            <p class="text-xs font-black uppercase tracking-wider text-brand-600 dark:text-brand-400">${escapeHtml(getActiveSchool(store.getState()).educationLevel)} / ${escapeHtml(getActiveSchool(store.getState()).name)}</p>
             <h2 class="mt-1 text-xl font-black text-slate-950 dark:text-white">Pusat Dokumen</h2>
             <p class="mt-1 text-sm text-slate-500 dark:text-slate-400" data-result-count>0 dokumen ditemukan</p>
           </div>

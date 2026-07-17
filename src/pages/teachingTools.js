@@ -3,6 +3,7 @@ import { renderLayout } from '../components/layout.js';
 import { openDocumentEditor } from '../components/documentEditor.js';
 import { curriculumFlow } from '../data/demo.js';
 import { escapeHtml, formatDateTime } from '../utils/format.js';
+import { filterDocumentsBySchool, getActiveSchool, levelTemplateLabel } from '../utils/education.js';
 import { getDocumentCode, nextActions, statusConfig } from '../utils/workflow.js';
 
 const statusBadge = (status) => {
@@ -12,8 +13,10 @@ const statusBadge = (status) => {
 
 export const renderTeachingTools = ({ query = new URLSearchParams() } = {}) => {
   const state = store.getState();
+  const activeSchool = getActiveSchool(state);
+  const activeDocuments = filterDocumentsBySchool(state.documents, activeSchool.id);
   const selectedType = query.get('type');
-  const typeDocuments = selectedType ? state.documents.filter((item) => item.type === selectedType) : state.documents;
+  const typeDocuments = selectedType ? activeDocuments.filter((item) => item.type === selectedType) : activeDocuments;
 
   renderLayout({
     path: '/teaching-tools',
@@ -26,7 +29,7 @@ export const renderTeachingTools = ({ query = new URLSearchParams() } = {}) => {
             <div>
               <span class="badge-info"><i data-lucide="Workflow" class="size-3.5"></i>Alur Terintegrasi</span>
               <h2 class="mt-3 text-xl font-black text-slate-950 dark:text-white">Pilih perangkat yang akan dibuat</h2>
-              <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">Data pada dokumen sebelumnya digunakan otomatis untuk menyusun tahap berikutnya.</p>
+              <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">${escapeHtml(levelTemplateLabel(activeSchool))}</p>
             </div>
             <button type="button" data-new-tool class="btn-primary">
               <i data-lucide="Plus" class="size-4"></i>Dokumen Baru
@@ -35,7 +38,7 @@ export const renderTeachingTools = ({ query = new URLSearchParams() } = {}) => {
 
           <div class="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             ${curriculumFlow.map((item, index) => {
-              const count = state.documents.filter((document) => document.type === item.code).length || item.count;
+              const count = activeDocuments.filter((document) => document.type === item.code).length || item.count;
               return `
                 <button type="button" data-tool-type="${item.code}" class="group relative overflow-hidden rounded-2xl border p-5 text-left transition hover:-translate-y-1 hover:shadow-soft ${selectedType === item.code ? 'border-brand-500 bg-brand-50 ring-4 ring-brand-100 dark:border-brand-500 dark:bg-brand-950/30 dark:ring-brand-950' : 'border-slate-200 bg-white hover:border-brand-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-brand-800'}">
                   <div class="absolute -right-5 -top-5 size-20 rounded-full bg-brand-500/10 blur-2xl"></div>

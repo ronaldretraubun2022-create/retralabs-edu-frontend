@@ -1,20 +1,12 @@
 import { schoolProfile } from '../data/demo.js';
+import { DEFAULT_SCHOOL_ID, getSubjectCodeForLevel, subjectMasterByLevel } from './education.js';
 
-export const APP_VERSION = '1.3.0';
-export const STORAGE_SCHEMA_VERSION = '1.3.0';
+export const APP_VERSION = '1.4.0';
+export const STORAGE_SCHEMA_VERSION = '1.4.0';
 
 export const documentTypes = ['CP', 'ACP', 'TP', 'ATP', 'PROTA', 'PROSEM', 'RPP', 'MODUL', 'KKTP', 'ASESMEN'];
 
-export const subjectMaster = [
-  { name: 'Bahasa Indonesia', code: 'BIND' },
-  { name: 'Matematika', code: 'MTK' },
-  { name: 'Informatika', code: 'INF' },
-  { name: 'Dasar-Dasar Agribisnis Tanaman', code: 'DAT' },
-  { name: 'Projek IPAS', code: 'IPAS' },
-  { name: 'Sejarah', code: 'SEJ' },
-  { name: 'Pendidikan Pancasila', code: 'PP' },
-  { name: 'Bahasa Inggris', code: 'BING' },
-];
+export const subjectMaster = Object.values(subjectMasterByLevel).flat();
 
 export const statusConfig = {
   draft: ['Draf', 'badge-warning', 'FileClock'],
@@ -47,7 +39,9 @@ export const nextActions = {
   KKTP: [{ type: 'ASESMEN', label: 'Buat Asesmen' }],
 };
 
-export const subjectCode = (subject = '') => {
+export const subjectCode = (subject = '', educationLevel = '') => {
+  const levelCode = getSubjectCodeForLevel(subject, educationLevel);
+  if (levelCode) return levelCode;
   const found = subjectMaster.find((item) => item.name === subject);
   if (found) return found.code;
   return String(subject || 'UMUM')
@@ -85,15 +79,19 @@ export const generateDocumentCode = ({
   phase,
   academicYear = schoolProfile.academicYear,
   semester = schoolProfile.semester,
+  schoolId = DEFAULT_SCHOOL_ID,
+  educationLevel = '',
   excludeId = '',
 }) => {
-  const mapelCode = subjectCode(subject);
+  const activeSchoolId = schoolId || DEFAULT_SCHOOL_ID;
+  const mapelCode = subjectCode(subject, educationLevel);
   const prefix = `${type}-${mapelCode}-${phase || 'E'}-`;
   const activeDocs = documents.filter((item) =>
     item.id !== excludeId &&
     item.type === type &&
     item.subject === subject &&
     item.phase === phase &&
+    (item.schoolId || DEFAULT_SCHOOL_ID) === activeSchoolId &&
     (item.academicYear || schoolProfile.academicYear) === academicYear &&
     (item.semester || schoolProfile.semester) === semester
   );
@@ -116,6 +114,8 @@ export const getSourceDocuments = (documents = [], values = {}) => {
   return documents.filter((item) => {
     if (!sourceTypes.includes(item.type)) return false;
     if (item.status === 'archived') return false;
+    if ((item.schoolId || DEFAULT_SCHOOL_ID) !== (values.schoolId || DEFAULT_SCHOOL_ID)) return false;
+    if ((item.educationLevel || '') !== (values.educationLevel || '')) return false;
     const includeSemester = values.type !== 'PROTA';
     return ['subject', 'className', 'phase', 'academicYear']
       .every((key) => !values[key] || String(item[key] || '') === String(values[key] || '')) &&
@@ -135,6 +135,8 @@ export const inheritFromSource = (source = {}) => ({
   phase: source.phase || 'E',
   academicYear: source.academicYear || schoolProfile.academicYear,
   semester: source.semester || schoolProfile.semester,
+  schoolId: source.schoolId || DEFAULT_SCHOOL_ID,
+  educationLevel: source.educationLevel || 'SMK',
   teacher: source.teacher || '',
 });
 
@@ -161,6 +163,8 @@ export const buildWorkflowIssues = (document = {}, documents = []) => {
       return;
     }
     if (!expectedSources.includes(source.type)) issues.push(`Tipe sumber ${getDocumentCode(source)} harus ${expectedSources.join(' atau ')}.`);
+    if ((source.schoolId || DEFAULT_SCHOOL_ID) !== (document.schoolId || DEFAULT_SCHOOL_ID)) issues.push(`Sekolah berbeda dengan ${getDocumentCode(source)}.`);
+    if ((source.educationLevel || '') !== (document.educationLevel || '')) issues.push(`Jenjang berbeda dengan ${getDocumentCode(source)}.`);
     if (source.subject !== document.subject) issues.push(`Mata pelajaran berbeda dengan ${getDocumentCode(source)}.`);
     if (source.className !== document.className) issues.push(`Kelas berbeda dengan ${getDocumentCode(source)}.`);
     if (source.phase !== document.phase) issues.push(`Fase berbeda dengan ${getDocumentCode(source)}.`);

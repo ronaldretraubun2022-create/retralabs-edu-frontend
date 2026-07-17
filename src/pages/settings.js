@@ -2,11 +2,12 @@ import { store } from '../app/store.js';
 import { renderLayout } from '../components/layout.js';
 import { toast } from '../components/toast.js';
 import { downloadFile, escapeHtml } from '../utils/format.js';
+import { EDUCATION_LEVELS, getActiveSchool } from '../utils/education.js';
 import { renderErrors, required, validateForm } from '../utils/validators.js';
 
 export const renderSettings = () => {
   const state = store.getState();
-  const school = state.school;
+  const school = getActiveSchool(state);
 
   renderLayout({
     path: '/settings',
@@ -39,14 +40,28 @@ export const renderSettings = () => {
             <form data-school-form class="mt-6 space-y-5" novalidate>
               <div class="grid gap-4 sm:grid-cols-2">
                 <label class="sm:col-span-2"><span class="form-label">Nama Sekolah *</span><input name="name" value="${escapeHtml(school.name)}" class="form-input" /><p data-error-for="name" class="field-error"></p></label>
+                <input type="hidden" name="id" value="${escapeHtml(school.id)}" />
+                <input type="hidden" name="educationLevel" value="${escapeHtml(school.educationLevel)}" />
                 <label><span class="form-label">NPSN *</span><input name="npsn" value="${escapeHtml(school.npsn)}" class="form-input" /><p data-error-for="npsn" class="field-error"></p></label>
-                <label><span class="form-label">Jenjang *</span><select name="level" class="form-select">${['SD', 'SMP', 'SMA', 'SMK'].map((item) => `<option ${item === school.level ? 'selected' : ''}>${item}</option>`).join('')}</select><p data-error-for="level" class="field-error"></p></label>
+                <label><span class="form-label">Jenjang *</span><select name="level" class="form-select">${EDUCATION_LEVELS.map((item) => `<option ${item === school.educationLevel ? 'selected' : ''}>${item}</option>`).join('')}</select><p data-error-for="level" class="field-error"></p></label>
                 <label class="sm:col-span-2"><span class="form-label">Alamat *</span><textarea name="address" rows="3" class="form-input">${escapeHtml(school.address)}</textarea><p data-error-for="address" class="field-error"></p></label>
                 <label><span class="form-label">Nama Kepala Sekolah *</span><input name="principal" value="${escapeHtml(school.principal)}" class="form-input" /><p data-error-for="principal" class="field-error"></p></label>
                 <label><span class="form-label">NIP Kepala Sekolah</span><input name="principalNip" value="${escapeHtml(school.principalNip)}" class="form-input" /></label>
                 <label><span class="form-label">Tahun Ajaran *</span><input name="academicYear" value="${escapeHtml(school.academicYear)}" class="form-input" /><p data-error-for="academicYear" class="field-error"></p></label>
                 <label><span class="form-label">Semester *</span><select name="semester" class="form-select"><option ${school.semester === 'Ganjil' ? 'selected' : ''}>Ganjil</option><option ${school.semester === 'Genap' ? 'selected' : ''}>Genap</option></select><p data-error-for="semester" class="field-error"></p></label>
               </div>
+              ${school.educationLevel === 'SD' ? `
+                <div class="grid gap-4 sm:grid-cols-2">
+                  <label><span class="form-label">Mode Guru SD</span><select name="teacherMode" class="form-select"><option ${school.teacherMode === 'Guru Kelas dan Guru Mapel' ? 'selected' : ''}>Guru Kelas dan Guru Mapel</option><option ${school.teacherMode === 'Guru Kelas' ? 'selected' : ''}>Guru Kelas</option><option ${school.teacherMode === 'Guru Mapel' ? 'selected' : ''}>Guru Mapel</option></select></label>
+                </div>
+              ` : '<input type="hidden" name="teacherMode" value="">'}
+              ${school.educationLevel === 'SMK' ? `
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <label><span class="form-label">Bidang Keahlian</span><input name="expertiseField" value="${escapeHtml(school.expertiseField || '')}" class="form-input" /></label>
+                  <label><span class="form-label">Program Keahlian</span><input name="expertiseProgram" value="${escapeHtml(school.expertiseProgram || '')}" class="form-input" /></label>
+                  <label><span class="form-label">Konsentrasi Keahlian</span><input name="expertiseConcentration" value="${escapeHtml(school.expertiseConcentration || '')}" class="form-input" /></label>
+                </div>
+              ` : '<input type="hidden" name="expertiseField" value=""><input type="hidden" name="expertiseProgram" value=""><input type="hidden" name="expertiseConcentration" value="">'}
               <div class="flex justify-end border-t border-slate-200 pt-5 dark:border-slate-800"><button type="submit" class="btn-primary"><i data-lucide="Save" class="size-4"></i>Simpan Profil</button></div>
             </form>
           </article>
@@ -137,7 +152,14 @@ export const renderSettings = () => {
       toast('Periksa profil sekolah yang wajib diisi.', 'warning');
       return;
     }
-    store.setState({ school: validation.data, activeAcademicYear: validation.data.academicYear, activeSemester: validation.data.semester });
+    const nextSchool = { ...school, ...validation.data, educationLevel: validation.data.level, level: validation.data.level };
+    store.setState((current) => ({
+      schools: current.schools.map((item) => (item.id === nextSchool.id ? nextSchool : item)),
+      school: nextSchool,
+      activeSchoolId: nextSchool.id,
+      activeAcademicYear: nextSchool.academicYear,
+      activeSemester: nextSchool.semester,
+    }));
     toast('Profil sekolah berhasil disimpan.', 'success');
   });
 

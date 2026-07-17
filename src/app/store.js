@@ -1,5 +1,6 @@
 import { documents as demoDocuments, schoolProfile } from '../data/demo.js';
 import { APP_VERSION, STORAGE_SCHEMA_VERSION, generateDocumentCode, getDocumentCode, normalizeIds, subjectCode } from '../utils/workflow.js';
+import { DEFAULT_SCHOOL_ID, getActiveSchool, phase2DocumentSeeds, schoolSeeds } from '../utils/education.js';
 
 const STORAGE_KEY = 'retralabs-edu-state-v1';
 
@@ -10,7 +11,9 @@ const initialState = {
   sidebarOpen: false,
   isAuthenticated: true,
   documents: demoDocuments,
-  school: schoolProfile,
+  schools: schoolSeeds,
+  activeSchoolId: DEFAULT_SCHOOL_ID,
+  school: { ...schoolProfile, id: DEFAULT_SCHOOL_ID, level: 'SMK', educationLevel: 'SMK' },
   activeAcademicYear: schoolProfile.academicYear,
   activeSemester: schoolProfile.semester,
   draft: null,
@@ -19,19 +22,28 @@ const initialState = {
 const normalizeDocumentCode = (document) => {
   const code = getDocumentCode(document);
   if (code === 'TP-MAPEL-E-04' && document.subject === 'Informatika') return 'TP-INF-E-04';
-  if (code.includes('-MAPEL-')) return code.replace('-MAPEL-', `-${subjectCode(document.subject)}-`);
+  if (code.includes('-MAPEL-')) return code.replace('-MAPEL-', `-${subjectCode(document.subject, document.educationLevel)}-`);
   return code;
 };
 
-const migrateDocuments = (documents = []) => {
+const migrateDocuments = (documents = [], { seedPhase2 = false } = {}) => {
   let changed = false;
-  const normalized = documents.map((document) => {
+  const existingSeedIds = new Set(documents.map((document) => document.id));
+  const seededDocuments = [
+    ...documents,
+    ...(seedPhase2 ? phase2DocumentSeeds.filter((document) => !existingSeedIds.has(document.id)) : []),
+  ];
+  if (seededDocuments.length !== documents.length) changed = true;
+
+  const normalized = seededDocuments.map((document) => {
     const next = {
       ...document,
       status: document.status || 'draft',
       progress: Number(document.progress || 45),
       academicYear: document.academicYear || schoolProfile.academicYear,
       semester: document.semester || (document.type === 'PROTA' ? 'Tahunan' : schoolProfile.semester),
+      schoolId: document.schoolId || DEFAULT_SCHOOL_ID,
+      educationLevel: document.educationLevel || 'SMK',
       sourceIds: normalizeIds(document.sourceIds || document.referenceIds || []),
       referenceIds: normalizeIds(document.referenceIds || document.sourceIds || []),
     };
@@ -58,6 +70,8 @@ const migrateDocuments = (documents = []) => {
         phase: document.phase,
         academicYear: document.academicYear,
         semester: document.semester,
+        schoolId: document.schoolId,
+        educationLevel: document.educationLevel,
         excludeId: document.id,
       });
       while (usedCodes.has(code)) {
@@ -77,18 +91,54 @@ const migrateDocuments = (documents = []) => {
 };
 
 const migrateState = (saved = {}) => {
+  const savedSchool = { ...initialState.school, ...(saved.school || {}) };
+  const normalizedSavedSchool = {
+    ...savedSchool,
+    id: savedSchool.id || DEFAULT_SCHOOL_ID,
+    level: savedSchool.educationLevel || savedSchool.level || 'SMK',
+    educationLevel: savedSchool.educationLevel || savedSchool.level || 'SMK',
+  };
+  const schoolMap = new Map(schoolSeeds.map((school) => [school.id, school]));
+  (Array.isArray(saved.schools) ? saved.schools : []).forEach((school) => {
+    const level = school.educationLevel || school.level || 'SMK';
+    schoolMap.set(school.id || (level === 'SMK' ? DEFAULT_SCHOOL_ID : `school-${level.toLowerCase()}`), {
+      ...schoolSeeds.find((item) => item.educationLevel === level),
+      ...school,
+      id: school.id || (level === 'SMK' ? DEFAULT_SCHOOL_ID : `school-${level.toLowerCase()}`),
+      level,
+      educationLevel: level,
+    });
+  });
+  schoolMap.set(normalizedSavedSchool.id, {
+    ...schoolMap.get(normalizedSavedSchool.id),
+    ...normalizedSavedSchool,
+  });
+  const schools = [...schoolMap.values()];
+  const activeSchoolId = saved.activeSchoolId || normalizedSavedSchool.id || DEFAULT_SCHOOL_ID;
+  const activeSchool = schools.find((school) => school.id === activeSchoolId) || schools.find((school) => school.id === DEFAULT_SCHOOL_ID) || schools[0];
   const merged = {
     ...initialState,
     ...saved,
     appVersion: APP_VERSION,
     schemaVersion: STORAGE_SCHEMA_VERSION,
+    schools,
+    activeSchoolId: activeSchool.id,
     documents: Array.isArray(saved.documents) ? saved.documents : initialState.documents,
-    school: { ...initialState.school, ...(saved.school || {}) },
+    school: activeSchool,
+    activeAcademicYear: saved.activeAcademicYear || activeSchool.academicYear,
+    activeSemester: saved.activeSemester || activeSchool.semester,
   };
-  const migrated = migrateDocuments(merged.documents);
+  const migrated = migrateDocuments(merged.documents, {
+    seedPhase2: saved.schemaVersion !== STORAGE_SCHEMA_VERSION || saved.appVersion !== APP_VERSION,
+  });
   return {
     state: { ...merged, documents: migrated.documents },
-    changed: migrated.changed || saved.appVersion !== APP_VERSION || saved.schemaVersion !== STORAGE_SCHEMA_VERSION,
+    changed:
+      migrated.changed ||
+      saved.appVersion !== APP_VERSION ||
+      saved.schemaVersion !== STORAGE_SCHEMA_VERSION ||
+      saved.activeSchoolId !== activeSchool.id ||
+      JSON.stringify(saved.schools || []) !== JSON.stringify(schools),
   };
 };
 
@@ -127,9 +177,22 @@ export const store = {
   },
 
   reset() {
-    state = structuredClone(initialState);
+    state = migrateState({}).state;
     persist();
     listeners.forEach((listener) => listener(this.getState()));
+  },
+
+  switchSchool(schoolId) {
+    this.setState((current) => {
+      const activeSchool = getActiveSchool({ ...current, activeSchoolId: schoolId });
+      return {
+        activeSchoolId: activeSchool.id,
+        school: activeSchool,
+        activeAcademicYear: activeSchool.academicYear,
+        activeSemester: activeSchool.semester,
+        draft: null,
+      };
+    });
   },
 
   addDocument(document) {

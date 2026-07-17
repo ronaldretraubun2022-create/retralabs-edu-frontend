@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.0 - 2026-07-18
+
+- Menambahkan mode multi-jenjang SD, SMP, SMA, dan SMK.
+- Menambahkan `educationLevel`, `schoolId`, sekolah aktif, dan pemilih sekolah di topbar.
+- Menambahkan pemetaan fase otomatis per jenjang dan validasi kombinasi jenjang/kelas/fase.
+- Menambahkan Data Master kelas dan mata pelajaran per jenjang.
+- Menambahkan seed dokumen SD, SMP, dan SMA tanpa menghapus data SMK existing.
+- Menambahkan migrasi idempotent v1.3.0 ke v1.4.0: data lama menjadi SMK dan relasi tetap memakai ID internal.
+- Menambahkan filter dokumen dan sumber dokumen per sekolah/jenjang agar data tidak tercampur.
+- Menambahkan field kontekstual: guru kelas hanya SD, kelompok pilihan SMA, bidang/program/konsentrasi/mitra/sertifikasi hanya SMK.
+- Menambahkan test Phase 2 untuk fase, filter, migrasi, dan switching sekolah.
+
 ## 1.3.0 - 2026-07-18
 
 - Menambahkan generator kode dokumen berbasis Data Master mata pelajaran.

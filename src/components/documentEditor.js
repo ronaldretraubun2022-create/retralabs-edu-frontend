@@ -1,7 +1,15 @@
 import { mockApi } from '../app/api.js';
 import { store } from '../app/store.js';
-import { classes, schoolProfile, subjects } from '../data/demo.js';
+import { schoolProfile } from '../data/demo.js';
 import { escapeHtml } from '../utils/format.js';
+import {
+  getActiveSchool,
+  getClassesForSchool,
+  getPhaseForClass,
+  getSubjectsForSchool,
+  levelTemplateLabel,
+  validateSchoolClassPhase,
+} from '../utils/education.js';
 import {
   buildWorkflowIssues,
   documentTypes,
@@ -91,21 +99,35 @@ const buildUnitsFromAtp = (atp, documents) => {
 
 export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocument = null } = {}) => {
   const state = store.getState();
+  const activeSchool = getActiveSchool(state);
+  const classes = getClassesForSchool(activeSchool);
+  const subjects = getSubjectsForSchool(activeSchool);
   const readonly = document?.status === 'approved';
   const inherited = sourceDocument ? inheritFromSource(sourceDocument, type) : {};
   const draft = !document && !sourceDocument ? state.draft : null;
   const initialType = document?.type || draft?.type || type;
   const initialSourceIds = normalizeIds(document?.sourceIds || document?.referenceIds || (sourceDocument ? [sourceDocument.id] : draft?.sourceIds || []));
+  const initialClassName = document?.className || draft?.className || inherited.className || '';
+  const initialEducationLevel = document?.educationLevel || draft?.educationLevel || inherited.educationLevel || activeSchool.educationLevel;
   const initialValues = {
     type: initialType,
     code: document?.code || draft?.code || '',
     title: document?.title || draft?.title || '',
     subject: document?.subject || draft?.subject || inherited.subject || '',
-    className: document?.className || draft?.className || inherited.className || '',
-    phase: document?.phase || draft?.phase || inherited.phase || 'E',
+    className: initialClassName,
+    phase: document?.phase || draft?.phase || inherited.phase || getPhaseForClass(initialEducationLevel, initialClassName) || 'E',
     academicYear: document?.academicYear || draft?.academicYear || inherited.academicYear || state.activeAcademicYear || schoolProfile.academicYear,
     semester: document?.semester || draft?.semester || inherited.semester || state.activeSemester || schoolProfile.semester,
+    schoolId: document?.schoolId || draft?.schoolId || inherited.schoolId || activeSchool.id,
+    educationLevel: initialEducationLevel,
     teacher: document?.teacher || draft?.teacher || inherited.teacher || '',
+    teacherRole: document?.teacherRole || draft?.teacherRole || '',
+    electiveGroup: document?.electiveGroup || draft?.electiveGroup || '',
+    expertiseField: document?.expertiseField || draft?.expertiseField || activeSchool.expertiseField || '',
+    expertiseProgram: document?.expertiseProgram || draft?.expertiseProgram || activeSchool.expertiseProgram || '',
+    expertiseConcentration: document?.expertiseConcentration || draft?.expertiseConcentration || activeSchool.expertiseConcentration || '',
+    industryPartner: document?.industryPartner || draft?.industryPartner || '',
+    certification: document?.certification || draft?.certification || '',
     topic: document?.topic || draft?.topic || sourceDocument?.topic || '',
     duration: document?.duration || draft?.duration || sourceDocument?.duration || '2 JP',
     totalJp: Number(document?.totalJp || draft?.totalJp || parseJp(sourceDocument?.duration) || 2),
@@ -120,6 +142,8 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
       phase: initialValues.phase,
       academicYear: initialValues.academicYear,
       semester: initialValues.semester,
+      schoolId: initialValues.schoolId,
+      educationLevel: initialValues.educationLevel,
       excludeId: document?.id,
     });
   }
@@ -136,10 +160,12 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
     size: 'max-w-6xl',
     content: `
       <form data-document-form class="space-y-6" novalidate>
+        <input type="hidden" name="schoolId" value="${escapeHtml(initialValues.schoolId)}" />
+        <input type="hidden" name="educationLevel" value="${escapeHtml(initialValues.educationLevel)}" />
         <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
           <div>
-            <p class="text-xs font-black uppercase tracking-wider text-brand-600 dark:text-brand-400">Perangkat Ajar / ${escapeHtml(initialType)}</p>
-            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Relasi memakai ID internal. Kode dokumen tetap dapat diedit dan harus unik.</p>
+            <p class="text-xs font-black uppercase tracking-wider text-brand-600 dark:text-brand-400">${escapeHtml(activeSchool.educationLevel)} / ${escapeHtml(activeSchool.name)} / ${escapeHtml(initialType)}</p>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">${escapeHtml(levelTemplateLabel(activeSchool))}</p>
           </div>
           ${statusBadge(document?.status || 'draft')}
         </div>
@@ -154,6 +180,40 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
           ${field({ label: 'Semester', name: 'semester', value: initialValues.semester, options: semesters, readonly })}
           ${field({ label: 'Nama Guru', name: 'teacher', value: initialValues.teacher, placeholder: 'Nama guru pengampu', readonly })}
         </div>
+
+        ${activeSchool.educationLevel === 'SD' ? `
+          <section class="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+            <h3 class="text-sm font-black text-slate-950 dark:text-white">Mode SD</h3>
+            <p class="mt-1 text-xs text-slate-500">Guru kelas hanya tersedia pada jenjang SD.</p>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+              ${field({ label: 'Peran Guru', name: 'teacherRole', value: initialValues.teacherRole, options: ['Guru Kelas', 'Guru Mapel'], readonly })}
+            </div>
+          </section>
+        ` : '<input type="hidden" name="teacherRole" value="">'}
+
+        ${activeSchool.educationLevel === 'SMA' ? `
+          <section class="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+            <h3 class="text-sm font-black text-slate-950 dark:text-white">Mode SMA</h3>
+            <p class="mt-1 text-xs text-slate-500">Gunakan untuk mata pelajaran pilihan dan kelompok pilihan.</p>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+              ${field({ label: 'Kelompok Pilihan', name: 'electiveGroup', value: initialValues.electiveGroup, options: activeSchool.electiveGroups || ['Sains dan Teknologi', 'Sosial Humaniora', 'Bahasa dan Budaya'], requiredMark: false, readonly })}
+            </div>
+          </section>
+        ` : '<input type="hidden" name="electiveGroup" value="">'}
+
+        ${activeSchool.educationLevel === 'SMK' ? `
+          <section class="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+            <h3 class="text-sm font-black text-slate-950 dark:text-white">Mode SMK</h3>
+            <p class="mt-1 text-xs text-slate-500">Bidang, program, konsentrasi keahlian, PKL, mitra dunia kerja, sertifikasi, dan UKK.</p>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              ${field({ label: 'Bidang Keahlian', name: 'expertiseField', value: initialValues.expertiseField, requiredMark: false, readonly })}
+              ${field({ label: 'Program Keahlian', name: 'expertiseProgram', value: initialValues.expertiseProgram, requiredMark: false, readonly })}
+              ${field({ label: 'Konsentrasi Keahlian', name: 'expertiseConcentration', value: initialValues.expertiseConcentration, requiredMark: false, readonly })}
+              ${field({ label: 'Mitra Dunia Kerja', name: 'industryPartner', value: initialValues.industryPartner, options: activeSchool.industryPartners || [], requiredMark: false, readonly })}
+              ${field({ label: 'Sertifikasi / UKK', name: 'certification', value: initialValues.certification, options: activeSchool.certifications || [], requiredMark: false, readonly })}
+            </div>
+          </section>
+        ` : '<input type="hidden" name="expertiseField" value=""><input type="hidden" name="expertiseProgram" value=""><input type="hidden" name="expertiseConcentration" value=""><input type="hidden" name="industryPartner" value=""><input type="hidden" name="certification" value="">'}
 
         <section class="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
           <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -250,6 +310,8 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
           phase: data.phase,
           academicYear: data.academicYear,
           semester: data.semester,
+          schoolId: data.schoolId,
+          educationLevel: data.educationLevel,
           excludeId: document?.id,
         });
       };
@@ -265,7 +327,7 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
       const inheritMetadata = (source) => {
         if (!source || readonly) return;
         const inheritedValues = inheritFromSource(source, form.elements.type.value);
-        ['subject', 'className', 'phase', 'academicYear', 'semester', 'teacher'].forEach((key) => {
+        ['subject', 'className', 'phase', 'academicYear', 'semester', 'teacher', 'schoolId', 'educationLevel'].forEach((key) => {
           if (form.elements[key]) form.elements[key].value = inheritedValues[key] || form.elements[key].value;
         });
         if (!form.elements.topic.value) form.elements.topic.value = source.topic || source.title;
@@ -469,6 +531,8 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
         });
         if (data.code.includes('-MAPEL-')) errors.code = 'Kode mata pelajaran harus memakai kode Data Master, bukan MAPEL.';
         if (store.getState().documents.some((item) => item.id !== document?.id && getDocumentCode(item) === data.code)) errors.code = 'Kode dokumen harus unik.';
+        const classPhaseError = validateSchoolClassPhase({ school: activeSchool, className: data.className, phase: data.phase });
+        if (classPhaseError) errors.phase = classPhaseError;
         if (data.type === 'CP' && !data.elements.length) errors.elements = 'Minimal satu elemen CP wajib diisi.';
         if (sourceTypesFor(data.type).length && !data.sourceIds.length) errors.sourceIds = 'Sumber dokumen wajib dipilih.';
         if (data.type === 'ATP' && data.sourceIds.length < 1) errors.sourceIds = 'ATP wajib memilih minimal satu TP.';
@@ -489,6 +553,10 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
             selectedSourceIds = [];
             units = [];
             schedules = [];
+          }
+          if (name === 'className') {
+            const nextPhase = getPhaseForClass(activeSchool.educationLevel, form.elements.className.value);
+            if (nextPhase) form.elements.phase.value = nextPhase;
           }
           syncCode();
           renderSources();

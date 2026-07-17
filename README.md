@@ -2,11 +2,15 @@
 
 Frontend SaaS modern untuk administrasi guru dan perangkat ajar Kurikulum Merdeka. Dibangun dengan Vite, Tailwind CSS, Vanilla JavaScript, Chart.js, Lucide Icons, dan localStorage.
 
-Versi aplikasi: 1.3.0
+Versi aplikasi: 1.4.0
 
 ## Fitur Utama
 
 - Workflow CP -> ACP -> TP -> ATP -> PROTA -> PROSEM -> RPP/Modul Ajar -> KKTP -> Asesmen.
+- Multi-jenjang SD, SMP, SMA, dan SMK dengan pemilih sekolah aktif.
+- Pemetaan fase otomatis: SD A-C, SMP D, SMA/SMK E-F.
+- Data Master kelas dan mata pelajaran mengikuti sekolah dan jenjang aktif.
+- Field kontekstual: guru kelas hanya SD, kelompok pilihan SMA, dan bidang/program/konsentrasi/mitra/sertifikasi hanya SMK.
 - Generator kode dokumen berbasis Data Master mata pelajaran, fase, jenis dokumen, tahun ajaran, dan semester.
 - Migrasi localStorage aman dan idempotent dari schema lama.
 - Relasi dokumen memakai internal ID; kode dokumen tetap dapat diedit sebagai identifier unik.
@@ -46,6 +50,16 @@ src/
     workflow.js
 ```
 
+## Migrasi 1.4.0
+
+Migrasi v1.3.0 ke v1.4.0 berjalan otomatis saat aplikasi membaca `localStorage`.
+
+- Sekolah existing dipertahankan sebagai SMK.
+- Dokumen lama diberi `schoolId` SMK dan `educationLevel` SMK.
+- Seed SD, SMP, dan SMA ditambahkan tanpa duplikasi.
+- Relasi tetap memakai internal ID dan data localStorage pengguna tidak dihapus.
+- Migrasi idempotent dan aman dijalankan berkali-kali.
+
 ## Migrasi 1.3.0
 
 Migrasi berjalan otomatis saat aplikasi membaca `localStorage`.
@@ -76,6 +90,14 @@ npm run preview
 ```
 
 Hasil build tersedia di folder `dist/`.
+
+## Test Phase 2
+
+```bash
+npm run test:phase2
+```
+
+Test mencakup pemetaan fase, filter sumber lintas sekolah, migrasi v1.3.0 ke v1.4.0, dan switching sekolah aktif.
 
 ## Akun Demo
 

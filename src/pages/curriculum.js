@@ -1,6 +1,8 @@
 import { renderLayout } from '../components/layout.js';
-import { curriculumFlow, schoolProfile } from '../data/demo.js';
+import { store } from '../app/store.js';
+import { curriculumFlow } from '../data/demo.js';
 import { toast } from '../components/toast.js';
+import { getActiveSchool, getSubjectObjectsForSchool } from '../utils/education.js';
 
 const phases = [
   { phase: 'A', classes: 'SD Kelas I–II', color: 'from-sky-500 to-blue-600' },
@@ -12,6 +14,15 @@ const phases = [
 ];
 
 export const renderCurriculum = () => {
+  const state = store.getState();
+  const activeSchool = getActiveSchool(state);
+  const subjects = getSubjectObjectsForSchool(activeSchool);
+  const phaseText = {
+    SD: 'A, B, C',
+    SMP: 'D',
+    SMA: 'E dan F',
+    SMK: 'E dan F',
+  }[activeSchool.educationLevel] || '-';
   renderLayout({
     path: '/curriculum',
     title: 'Struktur Kurikulum',
@@ -58,16 +69,16 @@ export const renderCurriculum = () => {
             <div>
               <p class="text-xs font-black uppercase tracking-[.18em] text-brand-300">Kurikulum Aktif</p>
               <h3 class="mt-2 text-xl font-black">Kurikulum Merdeka</h3>
-              <p class="mt-1 text-sm text-slate-300">${schoolProfile.academicYear} · ${schoolProfile.semester}</p>
+              <p class="mt-1 text-sm text-slate-300">${activeSchool.academicYear} - ${activeSchool.semester}</p>
             </div>
             <span class="grid size-12 place-items-center rounded-2xl bg-white/10"><i data-lucide="BadgeCheck" class="size-6 text-accent-400"></i></span>
           </div>
           <div class="mt-8 space-y-4">
             ${[
-              ['Jenjang', schoolProfile.level],
-              ['Fase Utama', 'E dan F'],
-              ['Mata Pelajaran', '18 aktif'],
-              ['Muatan Lokal', '2 aktif'],
+              ['Sekolah', activeSchool.name],
+              ['Jenjang', activeSchool.educationLevel],
+              ['Fase Utama', phaseText],
+              ['Mata Pelajaran', `${subjects.length} aktif`],
             ].map(([label, value]) => `
               <div class="flex items-center justify-between border-b border-white/10 pb-3 last:border-0">
                 <span class="text-sm text-slate-400">${label}</span>

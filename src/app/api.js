@@ -15,6 +15,8 @@ export const mockApi = {
       phase: payload.phase,
       academicYear: payload.academicYear,
       semester: payload.semester,
+      schoolId: payload.schoolId,
+      educationLevel: payload.educationLevel,
     });
     return {
       ...payload,
