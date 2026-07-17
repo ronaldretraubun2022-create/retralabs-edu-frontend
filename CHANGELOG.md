@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.6.0 - 2026-07-18
+
+- Memisahkan print engine, document template, paper config, theme config, dan education level config.
+- Menambahkan template cetak dinamis per jenjang dan jenis dokumen, termasuk field SD/SMA/SMK yang kontekstual.
+- Menambahkan konfigurasi ukuran A4 dan F4 dengan orientasi otomatis portrait/landscape berdasarkan jenis dokumen dan kepadatan tabel.
+- Menambahkan export Word berbasis template print serta print PDF browser untuk dokumen dan daftar dokumen.
+- Menambahkan Kalender Pendidikan modern per sekolah aktif, jenjang, tahun ajaran, dan semester.
+- Menambahkan migrasi idempotent v1.5.0 ke v1.6.0 untuk `printSettings` dan `academicCalendarEvents`.
+- Menambahkan test Phase 4 untuk print config, template jenjang, kalender, dan migrasi.
+
 ## 1.5.0 - 2026-07-18
 
 - Menambahkan schema perangkat ajar lengkap untuk CP, ACP, TP, ATP, PROTA, PROSEM, RPP, Modul Ajar, KKTP, dan Asesmen.

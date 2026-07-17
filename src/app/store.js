@@ -1,6 +1,8 @@
 import { documents as demoDocuments, schoolProfile } from '../data/demo.js';
 import { APP_VERSION, STORAGE_SCHEMA_VERSION, generateDocumentCode, getDocumentCode, normalizeIds, subjectCode } from '../utils/workflow.js';
 import { DEFAULT_SCHOOL_ID, getActiveSchool, phase2DocumentSeeds, phase3DocumentSeeds, resolveDocumentMasterRefs, schoolSeeds } from '../utils/education.js';
+import { defaultPrintSettings, normalizePrintSettings } from '../utils/printConfig.js';
+import { defaultCalendarEvents, normalizeCalendarEvents } from '../utils/academicCalendar.js';
 
 const STORAGE_KEY = 'retralabs-edu-state-v1';
 
@@ -16,6 +18,8 @@ const initialState = {
   school: { ...schoolProfile, id: DEFAULT_SCHOOL_ID, level: 'SMK', educationLevel: 'SMK' },
   activeAcademicYear: schoolProfile.academicYear,
   activeSemester: schoolProfile.semester,
+  printSettings: defaultPrintSettings,
+  academicCalendarEvents: defaultCalendarEvents,
   draft: null,
 };
 
@@ -128,6 +132,8 @@ const migrateState = (saved = {}) => {
     school: activeSchool,
     activeAcademicYear: saved.activeAcademicYear || activeSchool.academicYear,
     activeSemester: saved.activeSemester || activeSchool.semester,
+    printSettings: normalizePrintSettings(saved.printSettings || initialState.printSettings),
+    academicCalendarEvents: normalizeCalendarEvents(saved.academicCalendarEvents || initialState.academicCalendarEvents),
   };
   const migrated = migrateDocuments(merged.documents, {
     seedPhase2: saved.schemaVersion !== STORAGE_SCHEMA_VERSION || saved.appVersion !== APP_VERSION,
@@ -145,6 +151,8 @@ const migrateState = (saved = {}) => {
       saved.appVersion !== APP_VERSION ||
       saved.schemaVersion !== STORAGE_SCHEMA_VERSION ||
       saved.activeSchoolId !== activeSchool.id ||
+      JSON.stringify(saved.printSettings || {}) !== JSON.stringify(merged.printSettings) ||
+      JSON.stringify(saved.academicCalendarEvents || []) !== JSON.stringify(merged.academicCalendarEvents) ||
       JSON.stringify(saved.schools || []) !== JSON.stringify(schools),
   };
 };

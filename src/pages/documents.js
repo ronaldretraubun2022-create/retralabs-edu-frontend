@@ -3,8 +3,9 @@ import { renderLayout } from '../components/layout.js';
 import { openDocumentEditor } from '../components/documentEditor.js';
 import { closeModal, openModal } from '../components/modal.js';
 import { toast } from '../components/toast.js';
-import { downloadFile, escapeHtml, formatDateTime, slugify } from '../utils/format.js';
+import { escapeHtml, formatDateTime } from '../utils/format.js';
 import { filterDocumentsBySchool, getActiveSchool } from '../utils/education.js';
+import { exportDocumentAsWord, exportDocumentJson, printDocument, printDocumentList } from '../utils/printEngine.js';
 import { buildWorkflowIssues, childDocumentsOf, documentTypes, getDocumentCode, nextActions, statusConfig } from '../utils/workflow.js';
 
 const statusBadge = (status) => {
@@ -25,24 +26,6 @@ const documentActions = (id) => `
   </div>
 `;
 
-const buildWordDocument = (document) => `
-<!doctype html>
-<html><head><meta charset="utf-8"><title>${escapeHtml(document.title)}</title>
-<style>body{font-family:Arial,sans-serif;line-height:1.6;padding:40px;color:#111}h1{font-size:24px}table{border-collapse:collapse;width:100%;margin:20px 0}td{border:1px solid #aaa;padding:8px}.label{font-weight:bold;width:180px}pre{white-space:pre-wrap;font-family:Arial,sans-serif}</style>
-</head><body>
-<h1>${escapeHtml(document.title)}</h1>
-<table>
-<tr><td class="label">Kode Dokumen</td><td>${escapeHtml(getDocumentCode(document))}</td></tr>
-<tr><td class="label">Jenis Dokumen</td><td>${escapeHtml(document.type)}</td></tr>
-<tr><td class="label">Mata Pelajaran</td><td>${escapeHtml(document.subject)}</td></tr>
-<tr><td class="label">Kelas</td><td>${escapeHtml(document.className)}</td></tr>
-<tr><td class="label">Fase</td><td>${escapeHtml(document.phase)}</td></tr>
-<tr><td class="label">Tahun Ajaran</td><td>${escapeHtml(document.academicYear || '')}</td></tr>
-<tr><td class="label">Semester</td><td>${escapeHtml(document.semester || '')}</td></tr>
-</table>
-<pre>${escapeHtml(document.content || 'Konten dokumen belum tersedia pada data demo.')}</pre>
-</body></html>`;
-
 export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
   let search = query.get('search') || '';
   let status = 'all';
@@ -52,7 +35,8 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
 
   const exportDocument = (item) => {
     if (!item) return;
-    downloadFile(`${slugify(item.title)}.doc`, buildWordDocument(item), 'application/msword;charset=utf-8');
+    const state = store.getState();
+    exportDocumentAsWord({ document: item, school: getActiveSchool(state), settings: state.printSettings });
     toast('Dokumen Word berhasil diekspor.', 'success');
   };
 
@@ -135,10 +119,17 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
         });
         root.querySelector('[data-more-action="print"]').addEventListener('click', () => {
           closeModal();
-          setTimeout(() => window.print(), 100);
+          setTimeout(() => {
+            const state = store.getState();
+            try {
+              printDocument({ document: item, school: getActiveSchool(state), settings: state.printSettings });
+            } catch (error) {
+              toast(error.message || 'Print tidak dapat dibuka.', 'error');
+            }
+          }, 100);
         });
         root.querySelector('[data-more-action="json"]').addEventListener('click', () => {
-          downloadFile(`${slugify(item.title)}.json`, JSON.stringify(item, null, 2), 'application/json;charset=utf-8');
+          exportDocumentJson(item);
           toast('Data JSON berhasil diekspor.', 'success');
         });
         root.querySelector('[data-more-action="delete"]').addEventListener('click', () => {
@@ -313,7 +304,16 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
     renderRows();
   });
   document.querySelector('[data-new-document]').addEventListener('click', () => openDocumentEditor({ type: 'RPP' }));
-  document.querySelector('[data-print-list]').addEventListener('click', () => window.print());
+  document.querySelector('[data-print-list]').addEventListener('click', () => {
+    const state = store.getState();
+    const activeSchool = getActiveSchool(state);
+    const allDocuments = filterDocumentsBySchool(state.documents, activeSchool.id);
+    try {
+      printDocumentList({ documents: allDocuments, school: activeSchool, settings: state.printSettings });
+    } catch (error) {
+      toast(error.message || 'Print daftar tidak dapat dibuka.', 'error');
+    }
+  });
   const changedHandler = () => {
     if (document.querySelector('[data-document-table-body]')) renderRows();
   };

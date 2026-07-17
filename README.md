@@ -2,7 +2,7 @@
 
 Frontend SaaS modern untuk administrasi guru dan perangkat ajar Kurikulum Merdeka. Dibangun dengan Vite, Tailwind CSS, Vanilla JavaScript, Chart.js, Lucide Icons, dan localStorage.
 
-Versi aplikasi: 1.5.0
+Versi aplikasi: 1.6.0
 
 ## Fitur Utama
 
@@ -22,7 +22,10 @@ Versi aplikasi: 1.5.0
 - Editor PROSEM dari PROTA dengan distribusi bulan dan minggu efektif.
 - Status dokumen: Draf, Review, Perlu Revisi, Disetujui, Diarsipkan.
 - Proteksi hapus dokumen induk yang masih memiliki turunan.
-- Dark mode, responsive layout, toast, validasi field, autosave, export Word/JSON, dan print PDF.
+- Print engine terpisah dengan template per jenis dokumen dan jenjang.
+- Export Word/JSON, print PDF via browser, ukuran A4/F4, orientasi otomatis portrait/landscape, dan tema cetak.
+- Kalender Pendidikan modern per sekolah aktif, jenjang, tahun ajaran, dan semester.
+- Dark mode, responsive layout, toast, validasi field, dan autosave.
 
 ## Stack
 
@@ -49,8 +52,22 @@ src/
     documents.js
     teachingTools.js
   utils/
+    academicCalendar.js
+    documentTemplates.js
+    printConfig.js
+    printEngine.js
     workflow.js
 ```
+
+## Migrasi 1.6.0
+
+Migrasi v1.5.0 ke v1.6.0 berjalan otomatis dan idempotent.
+
+- Menambahkan `printSettings` default tanpa mengubah dokumen lama.
+- Menambahkan seed `academicCalendarEvents` untuk SD, SMP, SMA, dan SMK tanpa duplikasi.
+- Ukuran kertas dibatasi pada A4 dan F4.
+- Orientasi cetak otomatis mengikuti jenis dokumen dan kepadatan tabel.
+- Data localStorage pengguna tetap aman dan tidak dihapus.
 
 ## Migrasi 1.5.0
 
@@ -117,6 +134,14 @@ npm run test:phase3
 ```
 
 Test mencakup migrasi master reference, filter sumber berbasis ID, rantai perangkat ajar lengkap, dan proteksi kode `MAPEL`.
+
+## Test Phase 4
+
+```bash
+npm run test:phase4
+```
+
+Test mencakup konfigurasi A4/F4, orientasi print, template dokumen per jenjang, filter kalender, dan migrasi v1.5.0 ke v1.6.0.
 
 ## Akun Demo
 

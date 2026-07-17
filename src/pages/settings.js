@@ -3,11 +3,13 @@ import { renderLayout } from '../components/layout.js';
 import { toast } from '../components/toast.js';
 import { downloadFile, escapeHtml } from '../utils/format.js';
 import { EDUCATION_LEVELS, getActiveSchool } from '../utils/education.js';
+import { marginConfigs, paperConfigs, themeConfigs } from '../utils/printConfig.js';
 import { renderErrors, required, validateForm } from '../utils/validators.js';
 
 export const renderSettings = () => {
   const state = store.getState();
   const school = getActiveSchool(state);
+  const printSettings = state.printSettings || {};
 
   renderLayout({
     path: '/settings',
@@ -83,14 +85,20 @@ export const renderSettings = () => {
 
           <article data-settings-panel="documents" class="panel hidden">
             <h2 class="text-xl font-black text-slate-950 dark:text-white">Format Dokumen</h2>
-            <p class="mt-1 text-sm text-slate-500">Pengaturan default untuk export dan pencetakan.</p>
-            <div class="mt-6 grid gap-4 sm:grid-cols-2">
-              <label><span class="form-label">Ukuran Kertas</span><select class="form-select"><option>F4 / Folio</option><option>A4</option><option>Letter</option></select></label>
-              <label><span class="form-label">Orientasi</span><select class="form-select"><option>Portrait</option><option>Landscape</option></select></label>
-              <label><span class="form-label">Margin</span><select class="form-select"><option>Normal</option><option>Sempit</option><option>Lebar</option></select></label>
-              <label><span class="form-label">Font Dokumen</span><select class="form-select"><option>Times New Roman</option><option>Arial</option><option>Calibri</option></select></label>
-            </div>
-            <button type="button" data-save-document-settings class="btn-primary mt-6"><i data-lucide="Save" class="size-4"></i>Simpan Format</button>
+            <p class="mt-1 text-sm text-slate-500">Pengaturan default untuk export Word dan print browser.</p>
+            <form data-print-settings-form class="mt-6 space-y-5">
+              <div class="grid gap-4 sm:grid-cols-2">
+                <label><span class="form-label">Ukuran Kertas</span><select name="paperSize" class="form-select">${Object.values(paperConfigs).map((paper) => `<option value="${paper.id}" ${printSettings.paperSize === paper.id ? 'selected' : ''}>${paper.label}</option>`).join('')}</select></label>
+                <label><span class="form-label">Orientasi</span><select name="orientationMode" class="form-select">${[['auto', 'Otomatis'], ['portrait', 'Portrait'], ['landscape', 'Landscape']].map(([value, label]) => `<option value="${value}" ${printSettings.orientationMode === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
+                <label><span class="form-label">Margin</span><select name="margin" class="form-select">${Object.keys(marginConfigs).map((key) => `<option value="${key}" ${printSettings.margin === key ? 'selected' : ''}>${key}</option>`).join('')}</select></label>
+                <label><span class="form-label">Tema Dokumen</span><select name="theme" class="form-select">${Object.values(themeConfigs).map((theme) => `<option value="${theme.id}" ${printSettings.theme === theme.id ? 'selected' : ''}>${theme.label}</option>`).join('')}</select></label>
+              </div>
+              <label class="flex items-center gap-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                <input type="checkbox" name="showSignature" ${printSettings.showSignature !== false ? 'checked' : ''} class="size-5 accent-brand-600" />
+                <span><span class="block font-black">Tampilkan tanda tangan</span><span class="text-sm text-slate-500">Dipakai pada print dan export Word.</span></span>
+              </label>
+              <button type="submit" class="btn-primary"><i data-lucide="Save" class="size-4"></i>Simpan Format</button>
+            </form>
           </article>
 
           <article data-settings-panel="security" class="panel hidden">
@@ -171,7 +179,20 @@ export const renderSettings = () => {
     toast(`Mode ${theme === 'dark' ? 'gelap' : 'terang'} diaktifkan.`, 'info');
   }));
 
-  document.querySelector('[data-save-document-settings]').addEventListener('click', () => toast('Format dokumen berhasil disimpan.', 'success'));
+  document.querySelector('[data-print-settings-form]').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
+    store.setState({
+      printSettings: {
+        paperSize: formData.paperSize,
+        orientationMode: formData.orientationMode,
+        margin: formData.margin,
+        theme: formData.theme,
+        showSignature: Boolean(formData.showSignature),
+      },
+    });
+    toast('Format dokumen berhasil disimpan.', 'success');
+  });
   document.querySelector('[data-export-backup]').addEventListener('click', () => {
     downloadFile(`retralabs-edu-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(store.getState(), null, 2), 'application/json;charset=utf-8');
     toast('Backup data berhasil diunduh.', 'success');
