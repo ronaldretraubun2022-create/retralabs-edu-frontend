@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 196 52" role="img" aria-labelledby="title">
+  <title>RetraLabs Edu</title>
+  <defs>
+    <linearGradient id="brandGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2a9dff"/>
+      <stop offset="1" stop-color="#20c997"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="48" height="48" rx="15" fill="#0f172a"/>
+  <path d="M14 13h14c8 0 13 4 13 11 0 4-2 8-6 9l8 7H33l-6-6h-4v6h-9V13Zm9 7v7h5c3 0 4-1 4-3.5S31 20 28 20h-5Z" fill="url(#brandGradient)"/>
+  <text x="60" y="25" font-size="20" font-family="Inter,Arial,sans-serif" font-weight="800" fill="currentColor">RetraLabs</text>
+  <text x="61" y="41" font-size="12" font-family="Inter,Arial,sans-serif" font-weight="700" fill="#2a9dff">EDU SUITE</text>
+</svg>
