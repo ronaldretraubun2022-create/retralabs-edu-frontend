@@ -3,15 +3,10 @@ import { renderLayout } from '../components/layout.js';
 import { openDocumentEditor } from '../components/documentEditor.js';
 import { curriculumFlow } from '../data/demo.js';
 import { escapeHtml, formatDateTime } from '../utils/format.js';
+import { getDocumentCode, nextActions, statusConfig } from '../utils/workflow.js';
 
 const statusBadge = (status) => {
-  const map = {
-    approved: ['Disetujui', 'badge-success', 'CircleCheck'],
-    review: ['Review', 'badge-info', 'Clock3'],
-    revision: ['Revisi', 'badge-warning', 'MessageSquareWarning'],
-    draft: ['Draf', 'badge-warning', 'FileClock'],
-  };
-  const [label, className, icon] = map[status] || map.draft;
+  const [label, className, icon] = statusConfig[status] || statusConfig.draft;
   return `<span class="${className}"><i data-lucide="${icon}" class="size-3.5"></i>${label}</span>`;
 };
 
@@ -31,11 +26,10 @@ export const renderTeachingTools = ({ query = new URLSearchParams() } = {}) => {
             <div>
               <span class="badge-info"><i data-lucide="Workflow" class="size-3.5"></i>Alur Terintegrasi</span>
               <h2 class="mt-3 text-xl font-black text-slate-950 dark:text-white">Pilih perangkat yang akan dibuat</h2>
-              <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">Data pada dokumen sebelumnya akan digunakan otomatis untuk menyusun tahap berikutnya.</p>
+              <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">Data pada dokumen sebelumnya digunakan otomatis untuk menyusun tahap berikutnya.</p>
             </div>
             <button type="button" data-new-tool class="btn-primary">
-              <i data-lucide="Plus" class="size-4"></i>
-              Dokumen Baru
+              <i data-lucide="Plus" class="size-4"></i>Dokumen Baru
             </button>
           </div>
 
@@ -80,10 +74,10 @@ export const renderTeachingTools = ({ query = new URLSearchParams() } = {}) => {
             </div>
             <div class="mt-5 space-y-4">
               ${[
-                ['CP → ATP', 90],
-                ['PROTA → PROSEM', 80],
-                ['RPP → Modul', 65],
-                ['KKTP → Asesmen', 52],
+                ['CP -> ATP', 90],
+                ['PROTA -> PROSEM', 80],
+                ['RPP -> Modul', 65],
+                ['KKTP -> Asesmen', 52],
               ].map(([label, value]) => `
                 <div>
                   <div class="mb-1.5 flex justify-between text-xs font-bold"><span>${label}</span><span>${value}%</span></div>
@@ -112,14 +106,17 @@ export const renderTeachingTools = ({ query = new URLSearchParams() } = {}) => {
                 ${statusBadge(document.status)}
               </div>
               <h3 class="mt-4 line-clamp-2 text-base font-black text-slate-950 dark:text-white">${escapeHtml(document.title)}</h3>
-              <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">${escapeHtml(document.subject)} · ${escapeHtml(document.className)}</p>
+              <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">${escapeHtml(getDocumentCode(document))} - ${escapeHtml(document.subject)} - ${escapeHtml(document.className)}</p>
               <div class="mt-5">
                 <div class="mb-1.5 flex justify-between text-xs font-bold"><span>Kelengkapan</span><span>${document.progress}%</span></div>
                 <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800"><div class="h-2 rounded-full bg-gradient-to-r from-brand-600 to-accent-500" style="width:${document.progress}%"></div></div>
               </div>
-              <div class="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
+              <div class="mt-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
                 <span class="text-xs text-slate-400">${formatDateTime(document.updatedAt)}</span>
-                <button type="button" data-edit-document="${document.id}" class="inline-flex items-center gap-1 text-xs font-black text-brand-600 dark:text-brand-400">Buka <i data-lucide="ArrowUpRight" class="size-3.5"></i></button>
+                <div class="flex flex-wrap items-center justify-end gap-2">
+                  ${(nextActions[document.type] || []).slice(0, 1).map((action) => `<button type="button" data-continue-document="${document.id}" data-next-type="${action.type}" class="inline-flex items-center gap-1 text-xs font-black text-brand-600 dark:text-brand-400">${action.label}<i data-lucide="ArrowRight" class="size-3.5"></i></button>`).join('')}
+                  <button type="button" data-edit-document="${document.id}" class="inline-flex items-center gap-1 text-xs font-black text-brand-600 dark:text-brand-400">Buka <i data-lucide="ArrowUpRight" class="size-3.5"></i></button>
+                </div>
               </div>
             </article>
           `).join('') || `
@@ -134,7 +131,7 @@ export const renderTeachingTools = ({ query = new URLSearchParams() } = {}) => {
     `,
   });
 
-  const openNew = (type = selectedType || 'RPP') => openDocumentEditor({ type });
+  const openNew = (newType = selectedType || 'RPP') => openDocumentEditor({ type: newType });
   document.querySelector('[data-new-tool]')?.addEventListener('click', () => openNew());
   document.querySelector('[data-ai-create]')?.addEventListener('click', () => openNew());
   document.querySelectorAll('[data-tool-type]').forEach((button) => button.addEventListener('click', () => openNew(button.dataset.toolType)));
@@ -142,6 +139,12 @@ export const renderTeachingTools = ({ query = new URLSearchParams() } = {}) => {
     button.addEventListener('click', () => {
       const document = store.getState().documents.find((item) => item.id === button.dataset.editDocument);
       if (document) openDocumentEditor({ document });
+    });
+  });
+  document.querySelectorAll('[data-continue-document]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const document = store.getState().documents.find((item) => item.id === button.dataset.continueDocument);
+      if (document) openDocumentEditor({ type: button.dataset.nextType, sourceDocument: document });
     });
   });
 };

@@ -1,14 +1,29 @@
+import { store } from './store.js';
+import { generateDocumentCode, normalizeIds } from '../utils/workflow.js';
+
 const wait = (ms = 450) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const mockApi = {
   async saveDocument(payload) {
     await wait(650);
     if (!payload.title) throw new Error('Judul dokumen tidak boleh kosong.');
+    const state = store.getState();
+    const code = payload.code || generateDocumentCode({
+      documents: state.documents,
+      type: payload.type,
+      subject: payload.subject,
+      phase: payload.phase,
+      academicYear: payload.academicYear,
+      semester: payload.semester,
+    });
     return {
       ...payload,
       id: `DOC-${Date.now().toString().slice(-6)}`,
+      code,
+      sourceIds: normalizeIds(payload.sourceIds || []),
+      referenceIds: normalizeIds(payload.referenceIds || payload.sourceIds || []),
       updatedAt: new Date().toISOString(),
-      status: payload.status || 'draft',
+      status: 'draft',
       progress: Number(payload.progress || 45),
     };
   },

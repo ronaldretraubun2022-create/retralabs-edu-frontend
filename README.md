@@ -1,25 +1,22 @@
 # RetraLabs Edu Frontend
 
-Frontend SaaS modern untuk administrasi guru dan perangkat ajar Kurikulum Merdeka. Dibangun dengan Vite, Tailwind CSS, Vanilla JavaScript, Chart.js, dan Lucide Icons.
+Frontend SaaS modern untuk administrasi guru dan perangkat ajar Kurikulum Merdeka. Dibangun dengan Vite, Tailwind CSS, Vanilla JavaScript, Chart.js, Lucide Icons, dan localStorage.
 
-## Fitur
+Versi aplikasi: 1.3.0
 
-- Dashboard responsif dan mobile-first
-- Sidebar modern dan topbar
-- Dark mode tersimpan otomatis
-- Struktur CP → ACP → TP → ATP → PROTA → PROSEM → RPP → Modul Ajar → KKTP
-- Editor perangkat ajar dengan validasi form
-- AI Assistant mock untuk membuat draf awal
-- Auto save draf ke localStorage
-- Manajemen dokumen dan pencarian realtime
-- Filter status dan jenis dokumen
-- Export Word dan JSON
-- Print / simpan PDF melalui browser
-- Bank soal dan asesmen
-- Profil sekolah dan pengaturan dokumen
-- Backup data lokal
-- Toast notification, loading state, error handling
-- Login demo
+## Fitur Utama
+
+- Workflow CP -> ACP -> TP -> ATP -> PROTA -> PROSEM -> RPP/Modul Ajar -> KKTP -> Asesmen.
+- Generator kode dokumen berbasis Data Master mata pelajaran, fase, jenis dokumen, tahun ajaran, dan semester.
+- Migrasi localStorage aman dan idempotent dari schema lama.
+- Relasi dokumen memakai internal ID; kode dokumen tetap dapat diedit sebagai identifier unik.
+- Filter sumber ketat berdasarkan mata pelajaran, kelas, fase, tahun ajaran, dan semester.
+- ATP dapat memilih beberapa TP, mengatur urutan, dan menghitung total JP otomatis.
+- Editor PROTA dari ATP dengan tabel unit dinamis.
+- Editor PROSEM dari PROTA dengan distribusi bulan dan minggu efektif.
+- Status dokumen: Draf, Review, Perlu Revisi, Disetujui, Diarsipkan.
+- Proteksi hapus dokumen induk yang masih memiliki turunan.
+- Dark mode, responsive layout, toast, validasi field, autosave, export Word/JSON, dan print PDF.
 
 ## Stack
 
@@ -28,64 +25,44 @@ Frontend SaaS modern untuk administrasi guru dan perangkat ajar Kurikulum Merdek
 - Vanilla JavaScript ES Modules
 - Chart.js
 - Lucide Icons
-- localStorage untuk data demo
+- localStorage
 
-## Struktur Folder
+## Struktur Penting
 
 ```text
-retralabs-edu-frontend/
-├── public/
-│   └── favicon.svg
-├── src/
-│   ├── app/
-│   │   ├── api.js
-│   │   ├── router.js
-│   │   └── store.js
-│   ├── assets/
-│   │   └── logo.svg
-│   ├── components/
-│   │   ├── documentEditor.js
-│   │   ├── layout.js
-│   │   ├── loading.js
-│   │   ├── modal.js
-│   │   ├── sidebar.js
-│   │   ├── toast.js
-│   │   └── topbar.js
-│   ├── data/
-│   │   └── demo.js
-│   ├── pages/
-│   │   ├── assessment.js
-│   │   ├── curriculum.js
-│   │   ├── dashboard.js
-│   │   ├── documents.js
-│   │   ├── help.js
-│   │   ├── login.js
-│   │   ├── notFound.js
-│   │   ├── settings.js
-│   │   └── teachingTools.js
-│   ├── styles/
-│   │   └── app.css
-│   ├── utils/
-│   │   ├── format.js
-│   │   └── validators.js
-│   └── main.js
-├── index.html
-├── package.json
-├── postcss.config.js
-├── tailwind.config.js
-└── vite.config.js
+src/
+  app/
+    api.js
+    router.js
+    store.js
+  components/
+    documentEditor.js
+  data/
+    demo.js
+  pages/
+    documents.js
+    teachingTools.js
+  utils/
+    workflow.js
 ```
 
-## Cara Menjalankan
+## Migrasi 1.3.0
 
-Pastikan Node.js 20 atau lebih baru sudah terpasang.
+Migrasi berjalan otomatis saat aplikasi membaca `localStorage`.
+
+- `TP-MAPEL-E-04` dinormalisasi menjadi `TP-INF-E-04`.
+- `sourceIds` dan `referenceIds` yang masih memakai kode lama dikonversi ke internal ID dokumen.
+- Dokumen lama yang belum punya kode, tahun ajaran, semester, status, atau relasi aman dilengkapi.
+- Migrasi idempotent dan tidak menghapus data pengguna.
+
+## Menjalankan
 
 ```bash
 npm install
 npm run dev
 ```
 
-Buka alamat yang ditampilkan Vite, biasanya:
+Buka alamat Vite, biasanya:
 
 ```text
 http://localhost:5173
@@ -107,38 +84,12 @@ Email    : admin@retralabs.id
 Password : retralabs123
 ```
 
-Aplikasi langsung membuka dashboard. Halaman login dapat dibuka melalui:
+## Catatan Backend
 
-```text
-#/login
-```
-
-## Menghubungkan Backend
-
-Ganti fungsi mock pada:
+Tahap ini belum memakai backend. Integrasi API dapat dipasang di:
 
 ```text
 src/app/api.js
 ```
 
-Contoh struktur endpoint yang dapat digunakan:
-
-```text
-POST   /api/auth/login
-GET    /api/documents
-POST   /api/documents
-PATCH  /api/documents/:id
-DELETE /api/documents/:id
-POST   /api/ai/generate
-GET    /api/curriculum
-GET    /api/assessments
-```
-
-Gunakan token JWT atau session cookie pada layer API. Store lokal dapat diganti dengan state dari backend tanpa mengubah komponen UI utama.
-
-## Catatan
-
-- Data saat ini adalah data demo dan disimpan di localStorage browser.
-- Tombol AI menggunakan generator mock agar frontend dapat dijalankan tanpa API key.
-- Export Word menggunakan dokumen HTML berformat `.doc` yang dapat dibuka di Microsoft Word.
-- Print PDF menggunakan dialog cetak browser.
+Store lokal dapat diganti dengan state dari backend selama kontrak dokumen, `sourceIds`, `referenceIds`, dan metadata workflow dipertahankan.

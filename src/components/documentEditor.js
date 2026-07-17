@@ -1,129 +1,524 @@
 import { mockApi } from '../app/api.js';
 import { store } from '../app/store.js';
-import { classes, subjects } from '../data/demo.js';
+import { classes, schoolProfile, subjects } from '../data/demo.js';
 import { escapeHtml } from '../utils/format.js';
-import { minLength, renderErrors, required, validateForm } from '../utils/validators.js';
+import {
+  buildWorkflowIssues,
+  documentTypes,
+  findByIdOrCode,
+  formatJp,
+  generateDocumentCode,
+  getDocumentCode,
+  getSourceDocuments,
+  inheritFromSource,
+  isMultiSourceType,
+  normalizeIds,
+  parseJp,
+  sourceTypesFor,
+  statusConfig,
+  titleForDocument,
+} from '../utils/workflow.js';
 import { hideLoading, showLoading } from './loading.js';
 import { closeModal, openModal } from './modal.js';
 import { toast } from './toast.js';
 
-const documentTypes = ['CP', 'ACP', 'TP', 'ATP', 'PROTA', 'PROSEM', 'RPP', 'MODUL', 'KKTP'];
+const phases = ['A', 'B', 'C', 'D', 'E', 'F'];
+const semesters = ['Ganjil', 'Genap', 'Tahunan'];
+const months = ['Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni'];
 
-const field = ({ label, name, value = '', type = 'text', placeholder = '', options = [], requiredMark = true }) => `
+const field = ({ label, name, value = '', type = 'text', options = [], placeholder = '', requiredMark = true, readonly = false }) => `
   <label class="block">
     <span class="form-label">${label}${requiredMark ? ' <span class="text-rose-500">*</span>' : ''}</span>
     ${options.length ? `
-      <select name="${name}" class="form-select">
+      <select name="${name}" class="form-select" ${readonly ? 'disabled' : ''}>
         <option value="">Pilih ${label.toLowerCase()}</option>
         ${options.map((option) => `<option value="${escapeHtml(option)}" ${option === value ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('')}
       </select>
     ` : `
-      <input type="${type}" name="${name}" value="${escapeHtml(value)}" class="form-input" placeholder="${escapeHtml(placeholder)}" />
+      <input type="${type}" name="${name}" value="${escapeHtml(value)}" class="form-input" placeholder="${escapeHtml(placeholder)}" ${readonly ? 'readonly' : ''} />
     `}
     <p data-error-for="${name}" class="field-error"></p>
   </label>
 `;
 
-export const openDocumentEditor = ({ type = 'RPP', document = null } = {}) => {
+const statusBadge = (status) => {
+  const [label, className, icon] = statusConfig[status] || statusConfig.draft;
+  return `<span class="${className}"><i data-lucide="${icon}" class="size-3.5"></i>${label}</span>`;
+};
+
+const compactSourceCard = (document, index = null) => `
+  <div class="rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <p class="font-black text-slate-950 dark:text-white">${index ? `${index}. ` : ''}${escapeHtml(getDocumentCode(document))}</p>
+        <p class="mt-1 text-xs text-slate-500">${escapeHtml(document.title)}</p>
+      </div>
+      <span class="badge-info">${escapeHtml(document.className)} - Fase ${escapeHtml(document.phase)}</span>
+    </div>
+  </div>
+`;
+
+const renderErrorState = (form, errors = {}) => {
+  form.querySelectorAll('[data-error-for]').forEach((element) => {
+    element.textContent = errors[element.dataset.errorFor] || '';
+  });
+  form.querySelectorAll('[name]').forEach((input) => {
+    const hasError = Boolean(errors[input.name]);
+    input.classList.toggle('border-rose-500', hasError);
+    input.setAttribute('aria-invalid', String(hasError));
+  });
+};
+
+const buildUnitsFromTp = (sourceIds, documents) => sourceIds
+  .map((id) => findByIdOrCode(documents, id))
+  .filter(Boolean)
+  .map((source, index) => ({
+    id: `unit-${source.id}-${index}`,
+    tpId: source.id,
+    title: source.topic || source.title,
+    jp: parseJp(source.duration) || Number(source.totalJp || 0) || 2,
+    month: months[index % months.length],
+    week: index + 1,
+    assessment: 'Formatif',
+    note: '',
+  }));
+
+const buildUnitsFromAtp = (atp, documents) => {
+  if (!atp) return [];
+  if (Array.isArray(atp.units) && atp.units.length) return atp.units.map((unit, index) => ({ ...unit, id: unit.id || `unit-atp-${index}` }));
+  return buildUnitsFromTp(atp.sourceIds || [], documents);
+};
+
+export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocument = null } = {}) => {
   const state = store.getState();
-  const draft = !document ? state.draft : null;
-  const values = {
-    type: document?.type || draft?.type || type,
+  const readonly = document?.status === 'approved';
+  const inherited = sourceDocument ? inheritFromSource(sourceDocument, type) : {};
+  const draft = !document && !sourceDocument ? state.draft : null;
+  const initialType = document?.type || draft?.type || type;
+  const initialSourceIds = normalizeIds(document?.sourceIds || document?.referenceIds || (sourceDocument ? [sourceDocument.id] : draft?.sourceIds || []));
+  const initialValues = {
+    type: initialType,
+    code: document?.code || draft?.code || '',
     title: document?.title || draft?.title || '',
-    subject: document?.subject || draft?.subject || '',
-    className: document?.className || draft?.className || '',
-    phase: document?.phase || draft?.phase || 'E',
-    topic: document?.topic || draft?.topic || '',
-    duration: document?.duration || draft?.duration || '2 JP',
+    subject: document?.subject || draft?.subject || inherited.subject || '',
+    className: document?.className || draft?.className || inherited.className || '',
+    phase: document?.phase || draft?.phase || inherited.phase || 'E',
+    academicYear: document?.academicYear || draft?.academicYear || inherited.academicYear || state.activeAcademicYear || schoolProfile.academicYear,
+    semester: document?.semester || draft?.semester || inherited.semester || state.activeSemester || schoolProfile.semester,
+    teacher: document?.teacher || draft?.teacher || inherited.teacher || '',
+    topic: document?.topic || draft?.topic || sourceDocument?.topic || '',
+    duration: document?.duration || draft?.duration || sourceDocument?.duration || '2 JP',
+    totalJp: Number(document?.totalJp || draft?.totalJp || parseJp(sourceDocument?.duration) || 2),
     content: document?.content || draft?.content || '',
+    elements: Array.isArray(document?.elements) ? document.elements.join('\n') : (draft?.elements || ''),
   };
+  if (!initialValues.code) {
+    initialValues.code = generateDocumentCode({
+      documents: state.documents,
+      type: initialValues.type,
+      subject: initialValues.subject,
+      phase: initialValues.phase,
+      academicYear: initialValues.academicYear,
+      semester: initialValues.semester,
+      excludeId: document?.id,
+    });
+  }
+
+  let selectedSourceIds = [...initialSourceIds];
+  let manualTotalJp = Boolean(document?.totalJp);
+  let codeTouched = Boolean(document?.code);
+  let units = Array.isArray(document?.units) ? structuredClone(document.units) : [];
+  let schedules = Array.isArray(document?.schedules) ? structuredClone(document.schedules) : [];
 
   openModal({
-    title: document ? `Edit ${document.type}` : 'Buat Perangkat Ajar',
-    description: 'Isi data utama atau gunakan AI Assistant untuk membuat draf awal.',
-    size: 'max-w-4xl',
+    title: document ? `Edit ${document.type}` : `Buat ${initialType}`,
+    description: readonly ? 'Dokumen disetujui. Kembalikan ke revisi/draf sebelum mengubah isi.' : 'Metadata, sumber, dan relasi dokumen akan divalidasi sesuai alur kurikulum.',
+    size: 'max-w-6xl',
     content: `
       <form data-document-form class="space-y-6" novalidate>
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          ${field({ label: 'Jenis Dokumen', name: 'type', value: values.type, options: documentTypes })}
-          ${field({ label: 'Mata Pelajaran', name: 'subject', value: values.subject, options: subjects })}
-          ${field({ label: 'Kelas', name: 'className', value: values.className, options: classes })}
-          ${field({ label: 'Fase', name: 'phase', value: values.phase, options: ['A', 'B', 'C', 'D', 'E', 'F'] })}
-          ${field({ label: 'Alokasi Waktu', name: 'duration', value: values.duration, placeholder: 'Contoh: 2 JP' })}
-          ${field({ label: 'Materi / Topik', name: 'topic', value: values.topic, placeholder: 'Contoh: Persiapan lahan' })}
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+          <div>
+            <p class="text-xs font-black uppercase tracking-wider text-brand-600 dark:text-brand-400">Perangkat Ajar / ${escapeHtml(initialType)}</p>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Relasi memakai ID internal. Kode dokumen tetap dapat diedit dan harus unik.</p>
+          </div>
+          ${statusBadge(document?.status || 'draft')}
         </div>
 
-        ${field({ label: 'Judul Dokumen', name: 'title', value: values.title, placeholder: 'Masukkan judul dokumen' })}
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          ${field({ label: 'Jenis Dokumen', name: 'type', value: initialValues.type, options: documentTypes, readonly })}
+          ${field({ label: 'Kode Dokumen', name: 'code', value: initialValues.code, readonly })}
+          ${field({ label: 'Mata Pelajaran', name: 'subject', value: initialValues.subject, options: subjects, readonly })}
+          ${field({ label: 'Kelas', name: 'className', value: initialValues.className, options: classes, readonly })}
+          ${field({ label: 'Fase', name: 'phase', value: initialValues.phase, options: phases, readonly })}
+          ${field({ label: 'Tahun Ajaran', name: 'academicYear', value: initialValues.academicYear, readonly })}
+          ${field({ label: 'Semester', name: 'semester', value: initialValues.semester, options: semesters, readonly })}
+          ${field({ label: 'Nama Guru', name: 'teacher', value: initialValues.teacher, placeholder: 'Nama guru pengampu', readonly })}
+        </div>
+
+        <section class="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 class="text-sm font-black text-slate-950 dark:text-white">Sumber Dokumen</h3>
+              <p class="mt-1 text-xs text-slate-500">Difilter berdasarkan mata pelajaran, kelas, fase, tahun ajaran, dan semester.</p>
+            </div>
+            <span class="badge-info" data-source-rule></span>
+          </div>
+          <div data-source-options></div>
+          <p data-error-for="sourceIds" class="field-error"></p>
+          <div data-selected-sources class="mt-4 grid gap-2"></div>
+        </section>
+
+        <div class="grid gap-4 lg:grid-cols-[1fr_220px]">
+          ${field({ label: 'Materi / Topik', name: 'topic', value: initialValues.topic, placeholder: 'Contoh: Perancangan algoritma', readonly })}
+          ${field({ label: 'Total Alokasi JP', name: 'totalJp', value: initialValues.totalJp, type: 'number', readonly })}
+        </div>
+        <p data-total-warning class="-mt-3 text-xs font-semibold text-amber-600 dark:text-amber-400"></p>
+
+        <label class="block" data-cp-elements>
+          <span class="form-label">Elemen CP <span class="text-rose-500">*</span></span>
+          <textarea name="elements" rows="3" class="form-input resize-y" placeholder="Satu elemen per baris" ${readonly ? 'readonly' : ''}>${escapeHtml(initialValues.elements)}</textarea>
+          <p data-error-for="elements" class="field-error"></p>
+        </label>
+
+        <section data-unit-section class="hidden rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 class="text-sm font-black text-slate-950 dark:text-white" data-unit-title>Unit / Materi</h3>
+              <p class="mt-1 text-xs text-slate-500" data-unit-subtitle>Atur alokasi, bulan, minggu, dan keterangan.</p>
+            </div>
+            <button type="button" data-add-unit class="btn-secondary min-h-9 px-3 py-2 text-xs" ${readonly ? 'disabled' : ''}>
+              <i data-lucide="Plus" class="size-4"></i>Tambah Baris
+            </button>
+          </div>
+          <div data-unit-list class="grid gap-3"></div>
+          <p data-error-for="units" class="field-error"></p>
+        </section>
 
         <label class="block">
           <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
             <span class="form-label mb-0">Isi Dokumen <span class="text-rose-500">*</span></span>
-            <button type="button" data-ai-generate class="btn-secondary min-h-9 px-3 py-2 text-xs">
-              <i data-lucide="Sparkles" class="size-4"></i>
-              Generate dengan AI
+            <button type="button" data-ai-generate class="btn-secondary min-h-9 px-3 py-2 text-xs" ${readonly ? 'disabled' : ''}>
+              <i data-lucide="Sparkles" class="size-4"></i>Generate dengan AI
             </button>
           </div>
-          <textarea name="content" rows="12" class="form-input resize-y" placeholder="Tulis isi dokumen atau buat draf otomatis...">${escapeHtml(values.content)}</textarea>
+          <textarea name="content" rows="9" class="form-input resize-y" placeholder="Tulis isi dokumen atau buat draf otomatis..." ${readonly ? 'readonly' : ''}>${escapeHtml(initialValues.content)}</textarea>
           <p data-error-for="content" class="field-error"></p>
           <div class="mt-2 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
             <span data-autosave-status>Perubahan disimpan otomatis.</span>
-            <span data-character-count>${values.content.length} karakter</span>
+            <span data-character-count>${initialValues.content.length} karakter</span>
           </div>
         </label>
 
-        <div class="rounded-2xl border border-brand-200 bg-brand-50 p-4 dark:border-brand-900 dark:bg-brand-950/30">
-          <div class="flex gap-3">
-            <i data-lucide="ShieldCheck" class="mt-0.5 size-5 shrink-0 text-brand-600 dark:text-brand-400"></i>
-            <p class="text-sm text-brand-800 dark:text-brand-200">Konten AI adalah draf awal. Guru tetap wajib memeriksa kesesuaian CP, karakteristik peserta didik, konteks sekolah, dan alokasi waktu.</p>
-          </div>
-        </div>
-
-        <div class="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 dark:border-slate-800 sm:flex-row sm:justify-end">
-          <button type="button" data-save-draft class="btn-secondary">
-            <i data-lucide="Save" class="size-4"></i>
-            Simpan Draf
+        <footer class="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-col-reverse gap-3 border-t border-slate-200 bg-white/95 p-5 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:-mx-6 sm:-mb-6 sm:flex-row sm:justify-end">
+          <button type="button" data-save-draft class="btn-secondary" ${readonly ? 'disabled' : ''}>
+            <i data-lucide="Save" class="size-4"></i>Simpan Draf
           </button>
-          <button type="submit" class="btn-primary">
-            <i data-lucide="FileCheck2" class="size-4"></i>
-            ${document ? 'Simpan Perubahan' : 'Buat Dokumen'}
+          <button type="submit" class="btn-primary" ${readonly ? 'disabled' : ''}>
+            <i data-lucide="FileCheck2" class="size-4"></i>${document ? 'Simpan Perubahan' : 'Buat Dokumen'}
           </button>
-        </div>
+        </footer>
       </form>
     `,
     onOpen(root) {
       const form = root.querySelector('[data-document-form]');
+      const sourceOptions = root.querySelector('[data-source-options]');
+      const sourceRule = root.querySelector('[data-source-rule]');
+      const selectedSources = root.querySelector('[data-selected-sources]');
+      const totalWarning = root.querySelector('[data-total-warning]');
+      const unitSection = root.querySelector('[data-unit-section]');
+      const unitList = root.querySelector('[data-unit-list]');
+      const unitTitle = root.querySelector('[data-unit-title]');
+      const unitSubtitle = root.querySelector('[data-unit-subtitle]');
+      const cpElements = root.querySelector('[data-cp-elements]');
       const contentField = form.elements.content;
       const count = root.querySelector('[data-character-count]');
       const autosaveStatus = root.querySelector('[data-autosave-status]');
       let autosaveTimer;
 
       const getFormData = () => Object.fromEntries(new FormData(form).entries());
+      const currentValues = () => ({ ...initialValues, ...getFormData(), sourceIds: selectedSourceIds });
+
+      const selectedDocs = () => selectedSourceIds.map((id) => findByIdOrCode(store.getState().documents, id)).filter(Boolean);
+
+      const syncCode = () => {
+        if (readonly || codeTouched) return;
+        const data = currentValues();
+        form.elements.code.value = generateDocumentCode({
+          documents: store.getState().documents,
+          type: data.type,
+          subject: data.subject,
+          phase: data.phase,
+          academicYear: data.academicYear,
+          semester: data.semester,
+          excludeId: document?.id,
+        });
+      };
+
+      const updateTotalWarning = () => {
+        const selectedTotal = selectedDocs().reduce((sum, item) => sum + (Number(item.totalJp) || parseJp(item.duration)), 0);
+        const total = Number(form.elements.totalJp.value || 0);
+        totalWarning.textContent = selectedTotal && total !== selectedTotal
+          ? `Peringatan: total sumber adalah ${selectedTotal} JP, sedangkan dokumen ini ${total} JP.`
+          : '';
+      };
+
+      const inheritMetadata = (source) => {
+        if (!source || readonly) return;
+        const inheritedValues = inheritFromSource(source, form.elements.type.value);
+        ['subject', 'className', 'phase', 'academicYear', 'semester', 'teacher'].forEach((key) => {
+          if (form.elements[key]) form.elements[key].value = inheritedValues[key] || form.elements[key].value;
+        });
+        if (!form.elements.topic.value) form.elements.topic.value = source.topic || source.title;
+        syncCode();
+      };
+
+      const ensureUnits = () => {
+        const data = currentValues();
+        if (data.type === 'PROTA') {
+          const atp = selectedDocs()[0];
+          if (!units.length && atp) units = buildUnitsFromAtp(atp, store.getState().documents);
+        }
+        if (data.type === 'PROSEM') {
+          const prota = selectedDocs()[0];
+          if (!schedules.length && prota) schedules = buildUnitsFromAtp(prota, store.getState().documents);
+        }
+      };
+
+      const renderSelectedSources = () => {
+        const docs = selectedDocs();
+        selectedSources.innerHTML = docs.length ? docs.map((item, index) => `
+          <div class="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950 sm:grid-cols-[1fr_auto] sm:items-center">
+            ${compactSourceCard(item, index + 1)}
+            ${isMultiSourceType(form.elements.type.value) && !readonly ? `
+              <div class="flex gap-1 sm:justify-end">
+                <button type="button" data-source-up="${item.id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Naik"><i data-lucide="ArrowUp" class="size-4"></i></button>
+                <button type="button" data-source-down="${item.id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Turun"><i data-lucide="ArrowDown" class="size-4"></i></button>
+              </div>
+            ` : ''}
+          </div>
+        `).join('') : '<div class="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500 dark:border-slate-700">Belum ada sumber yang dipilih.</div>';
+
+        selectedSources.querySelectorAll('[data-source-up]').forEach((button) => button.addEventListener('click', () => {
+          const index = selectedSourceIds.indexOf(button.dataset.sourceUp);
+          if (index > 0) [selectedSourceIds[index - 1], selectedSourceIds[index]] = [selectedSourceIds[index], selectedSourceIds[index - 1]];
+          renderSelectedSources();
+          renderUnits();
+        }));
+        selectedSources.querySelectorAll('[data-source-down]').forEach((button) => button.addEventListener('click', () => {
+          const index = selectedSourceIds.indexOf(button.dataset.sourceDown);
+          if (index < selectedSourceIds.length - 1) [selectedSourceIds[index + 1], selectedSourceIds[index]] = [selectedSourceIds[index], selectedSourceIds[index + 1]];
+          renderSelectedSources();
+          renderUnits();
+        }));
+        updateTotalWarning();
+        window.dispatchEvent(new CustomEvent('retralabs:icons'));
+      };
+
+      const renderSources = () => {
+        const data = currentValues();
+        cpElements.classList.toggle('hidden', data.type !== 'CP');
+        const sourceTypes = sourceTypesFor(data.type);
+        sourceRule.textContent = sourceTypes.length ? `Sumber: ${sourceTypes.join(' / ')}` : 'Tanpa sumber';
+        if (!sourceTypes.length) {
+          selectedSourceIds = [];
+          sourceOptions.innerHTML = '<div class="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500 dark:border-slate-700">Dokumen ini menjadi awal alur.</div>';
+          renderSelectedSources();
+          return;
+        }
+
+        const options = getSourceDocuments(store.getState().documents, data);
+        selectedSourceIds = selectedSourceIds.filter((id) => options.some((item) => item.id === id || getDocumentCode(item) === id));
+        const multi = isMultiSourceType(data.type);
+        sourceOptions.innerHTML = options.length ? `
+          <div class="grid gap-3 md:grid-cols-2">
+            ${options.map((item) => {
+              const checked = selectedSourceIds.includes(item.id);
+              return `
+                <label class="flex cursor-pointer gap-3 rounded-2xl border border-slate-200 p-3 transition hover:border-brand-300 dark:border-slate-800 dark:hover:border-brand-800">
+                  <input ${multi ? 'type="checkbox"' : 'type="radio"'} name="sourceChoice" value="${escapeHtml(item.id)}" ${checked ? 'checked' : ''} class="mt-1 size-4 accent-brand-600" ${readonly ? 'disabled' : ''} />
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="text-sm font-black text-slate-950 dark:text-white">${escapeHtml(getDocumentCode(item))}</span>
+                      <span class="badge-info">${escapeHtml(item.className)} - Fase ${escapeHtml(item.phase)}</span>
+                    </div>
+                    <p class="mt-1 line-clamp-2 text-xs text-slate-500">${escapeHtml(item.title)}</p>
+                  </div>
+                </label>
+              `;
+            }).join('')}
+          </div>
+        ` : '<div class="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700">Tidak ada sumber yang cocok untuk metadata ini.</div>';
+
+        sourceOptions.querySelectorAll('[name="sourceChoice"]').forEach((input) => {
+          input.addEventListener('change', () => {
+            if (multi) {
+              selectedSourceIds = input.checked
+                ? normalizeIds([...selectedSourceIds, input.value])
+                : selectedSourceIds.filter((id) => id !== input.value);
+            } else {
+              selectedSourceIds = [input.value];
+              inheritMetadata(findByIdOrCode(store.getState().documents, input.value));
+            }
+            if (!manualTotalJp && multi) form.elements.totalJp.value = selectedDocs().reduce((sum, item) => sum + (Number(item.totalJp) || parseJp(item.duration)), 0) || form.elements.totalJp.value;
+            units = [];
+            schedules = [];
+            ensureUnits();
+            renderSelectedSources();
+            renderUnits();
+          });
+        });
+        renderSelectedSources();
+      };
+
+      const readUnitsFromDom = () => {
+        const rows = [...unitList.querySelectorAll('[data-unit-row]')];
+        return rows.map((row) => ({
+          id: row.dataset.unitId,
+          tpId: row.querySelector('[name="unitTpId"]')?.value || '',
+          title: row.querySelector('[name="unitTitle"]')?.value || '',
+          jp: Number(row.querySelector('[name="unitJp"]')?.value || 0),
+          month: row.querySelector('[name="unitMonth"]')?.value || '',
+          week: Number(row.querySelector('[name="unitWeek"]')?.value || 1),
+          schedule: row.querySelector('[name="unitSchedule"]')?.value || '',
+          assessment: row.querySelector('[name="unitAssessment"]')?.value || '',
+          note: row.querySelector('[name="unitNote"]')?.value || '',
+        }));
+      };
+
+      const renderUnits = () => {
+        ensureUnits();
+        const data = currentValues();
+        const isProta = data.type === 'PROTA';
+        const isProsem = data.type === 'PROSEM';
+        const rows = isProsem ? schedules : units;
+        unitSection.classList.toggle('hidden', !isProta && !isProsem);
+        if (!isProta && !isProsem) return;
+        unitTitle.textContent = isProta ? 'Unit PROTA dari ATP' : 'Kalender Distribusi Minggu Efektif';
+        unitSubtitle.textContent = isProta ? 'Unit otomatis dari TP pada ATP, tetap bisa disesuaikan.' : 'Susun bulan, minggu ke, jadwal, asesmen, dan keterangan dari PROTA.';
+        unitList.innerHTML = rows.length ? rows.map((unit, index) => `
+          <div data-unit-row data-unit-id="${escapeHtml(unit.id || `unit-${index}`)}" class="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <span class="grid size-8 place-items-center rounded-lg bg-brand-100 text-xs font-black text-brand-700 dark:bg-brand-950 dark:text-brand-300">${index + 1}</span>
+              <div class="flex gap-1">
+                <button type="button" data-unit-up="${index}" class="icon-btn size-8 min-h-8 rounded-lg" ${readonly ? 'disabled' : ''} title="Naik"><i data-lucide="ArrowUp" class="size-4"></i></button>
+                <button type="button" data-unit-down="${index}" class="icon-btn size-8 min-h-8 rounded-lg" ${readonly ? 'disabled' : ''} title="Turun"><i data-lucide="ArrowDown" class="size-4"></i></button>
+                <button type="button" data-unit-delete="${index}" class="icon-btn size-8 min-h-8 rounded-lg text-rose-600" ${readonly ? 'disabled' : ''} title="Hapus"><i data-lucide="Trash2" class="size-4"></i></button>
+              </div>
+            </div>
+            <input type="hidden" name="unitTpId" value="${escapeHtml(unit.tpId || '')}" />
+            <div class="grid gap-3 lg:grid-cols-[1.4fr_100px_140px_100px]">
+              <input name="unitTitle" class="form-input" value="${escapeHtml(unit.title || '')}" placeholder="Unit / materi" ${readonly ? 'readonly' : ''} />
+              <input name="unitJp" type="number" min="1" class="form-input" value="${escapeHtml(unit.jp || 1)}" placeholder="JP" ${readonly ? 'readonly' : ''} />
+              <select name="unitMonth" class="form-select" ${readonly ? 'disabled' : ''}>${months.map((month) => `<option value="${month}" ${month === unit.month ? 'selected' : ''}>${month}</option>`).join('')}</select>
+              <input name="unitWeek" type="number" min="1" max="6" class="form-input" value="${escapeHtml(unit.week || index + 1)}" placeholder="Minggu" ${readonly ? 'readonly' : ''} />
+            </div>
+            ${isProsem ? `
+              <div class="mt-3 grid gap-3 lg:grid-cols-2">
+                <input name="unitSchedule" class="form-input" value="${escapeHtml(unit.schedule || '')}" placeholder="Jadwal pelaksanaan" ${readonly ? 'readonly' : ''} />
+                <input name="unitAssessment" class="form-input" value="${escapeHtml(unit.assessment || '')}" placeholder="Asesmen" ${readonly ? 'readonly' : ''} />
+              </div>
+            ` : '<input type="hidden" name="unitSchedule" value=""><input type="hidden" name="unitAssessment" value="">'}
+            <input name="unitNote" class="form-input mt-3" value="${escapeHtml(unit.note || '')}" placeholder="Keterangan" ${readonly ? 'readonly' : ''} />
+          </div>
+        `).join('') : '<div class="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700">Belum ada baris distribusi.</div>';
+
+        unitList.querySelectorAll('[data-unit-up]').forEach((button) => button.addEventListener('click', () => {
+          const list = isProsem ? schedules : units;
+          const index = Number(button.dataset.unitUp);
+          if (index > 0) [list[index - 1], list[index]] = [list[index], list[index - 1]];
+          renderUnits();
+        }));
+        unitList.querySelectorAll('[data-unit-down]').forEach((button) => button.addEventListener('click', () => {
+          const list = isProsem ? schedules : units;
+          const index = Number(button.dataset.unitDown);
+          if (index < list.length - 1) [list[index + 1], list[index]] = [list[index], list[index + 1]];
+          renderUnits();
+        }));
+        unitList.querySelectorAll('[data-unit-delete]').forEach((button) => button.addEventListener('click', () => {
+          const list = isProsem ? schedules : units;
+          list.splice(Number(button.dataset.unitDelete), 1);
+          renderUnits();
+        }));
+        window.dispatchEvent(new CustomEvent('retralabs:icons'));
+      };
 
       const saveDraft = (showToast = false) => {
-        store.setState({ draft: getFormData() });
+        if (readonly) return;
+        store.setState({ draft: { ...getFormData(), sourceIds: selectedSourceIds } });
         autosaveStatus.textContent = `Draf tersimpan ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`;
         if (showToast) toast('Draf berhasil disimpan di perangkat.', 'success');
       };
 
+      const validate = () => {
+        units = currentValues().type === 'PROTA' ? readUnitsFromDom() : units;
+        schedules = currentValues().type === 'PROSEM' ? readUnitsFromDom() : schedules;
+        const data = {
+          ...getFormData(),
+          sourceIds: normalizeIds(selectedSourceIds),
+          referenceIds: normalizeIds(selectedSourceIds),
+          totalJp: Number(form.elements.totalJp.value || 0),
+          duration: formatJp(Number(form.elements.totalJp.value || 0)),
+          elements: String(form.elements.elements?.value || '').split('\n').map((item) => item.trim()).filter(Boolean),
+          units,
+          schedules,
+        };
+        data.title = data.title || titleForDocument(data);
+        const errors = {};
+        ['type', 'code', 'subject', 'className', 'phase', 'academicYear', 'semester', 'topic', 'content'].forEach((key) => {
+          if (!String(data[key] || '').trim()) errors[key] = `${key === 'className' ? 'Kelas' : key} wajib diisi.`;
+        });
+        if (data.code.includes('-MAPEL-')) errors.code = 'Kode mata pelajaran harus memakai kode Data Master, bukan MAPEL.';
+        if (store.getState().documents.some((item) => item.id !== document?.id && getDocumentCode(item) === data.code)) errors.code = 'Kode dokumen harus unik.';
+        if (data.type === 'CP' && !data.elements.length) errors.elements = 'Minimal satu elemen CP wajib diisi.';
+        if (sourceTypesFor(data.type).length && !data.sourceIds.length) errors.sourceIds = 'Sumber dokumen wajib dipilih.';
+        if (data.type === 'ATP' && data.sourceIds.length < 1) errors.sourceIds = 'ATP wajib memilih minimal satu TP.';
+        if (data.totalJp <= 0) errors.totalJp = 'Jumlah alokasi waktu harus valid.';
+        if (['PROTA', 'PROSEM'].includes(data.type)) {
+          const list = data.type === 'PROTA' ? data.units : data.schedules;
+          const total = list.reduce((sum, unit) => sum + Number(unit.jp || 0), 0);
+          if (!list.length || total <= 0) errors.units = 'Minimal satu baris unit dengan JP valid wajib diisi.';
+        }
+        const workflowIssues = buildWorkflowIssues(data, store.getState().documents);
+        if (workflowIssues.length) errors.sourceIds = workflowIssues[0];
+        return { data, errors, isValid: Object.keys(errors).length === 0 };
+      };
+
+      ['type', 'subject', 'className', 'phase', 'academicYear', 'semester'].forEach((name) => {
+        form.elements[name]?.addEventListener('change', () => {
+          if (name === 'type') {
+            selectedSourceIds = [];
+            units = [];
+            schedules = [];
+          }
+          syncCode();
+          renderSources();
+          renderUnits();
+        });
+      });
+      form.elements.code.addEventListener('input', () => { codeTouched = true; });
+      form.elements.totalJp.addEventListener('input', () => { manualTotalJp = true; updateTotalWarning(); });
       form.addEventListener('input', () => {
         count.textContent = `${contentField.value.length} karakter`;
         autosaveStatus.textContent = 'Menyimpan perubahan...';
         clearTimeout(autosaveTimer);
         autosaveTimer = setTimeout(saveDraft, 500);
       });
-
+      root.querySelector('[data-add-unit]').addEventListener('click', () => {
+        const data = currentValues();
+        const list = data.type === 'PROSEM' ? schedules : units;
+        list.push({ id: `unit-${Date.now()}`, title: '', jp: 1, month: months[0], week: list.length + 1, assessment: '', schedule: '', note: '' });
+        renderUnits();
+      });
       root.querySelector('[data-save-draft]').addEventListener('click', () => saveDraft(true));
-
       root.querySelector('[data-ai-generate]').addEventListener('click', async () => {
-        const data = getFormData();
+        const data = currentValues();
         if (!data.subject || !data.topic || !data.className) {
           toast('Pilih mata pelajaran, kelas, dan materi terlebih dahulu.', 'warning');
           return;
         }
-
         showLoading('AI sedang menyusun draf');
         try {
-          const result = await mockApi.generateWithAi(data);
+          const result = await mockApi.generateWithAi({ ...data, duration: formatJp(data.totalJp) });
           form.elements.title.value = result.title;
           contentField.value = result.content;
           count.textContent = `${result.content.length} karakter`;
@@ -135,31 +530,20 @@ export const openDocumentEditor = ({ type = 'RPP', document = null } = {}) => {
           hideLoading();
         }
       });
-
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
-        const validation = validateForm(form, {
-          type: (value) => required(value, 'Jenis dokumen'),
-          subject: (value) => required(value, 'Mata pelajaran'),
-          className: (value) => required(value, 'Kelas'),
-          phase: (value) => required(value, 'Fase'),
-          duration: (value) => required(value, 'Alokasi waktu'),
-          topic: (value) => required(value, 'Materi'),
-          title: [(value) => required(value, 'Judul'), (value) => minLength(value, 8, 'Judul')],
-          content: [(value) => required(value, 'Isi dokumen'), (value) => minLength(value, 20, 'Isi dokumen')],
-        });
-        renderErrors(form, validation.errors);
+        const validation = validate();
+        renderErrorState(form, validation.errors);
         if (!validation.isValid) {
-          toast('Periksa kembali data yang wajib diisi.', 'warning');
+          toast('Periksa kembali data dan sumber dokumen.', 'warning');
           return;
         }
-
         showLoading(document ? 'Menyimpan perubahan' : 'Membuat dokumen');
         try {
           if (document) {
-            store.updateDocument(document.id, { ...validation.data, progress: Math.max(document.progress, 70) });
+            store.updateDocument(document.id, { ...validation.data, progress: Math.max(document.progress || 45, 75) });
           } else {
-            const result = await mockApi.saveDocument(validation.data);
+            const result = await mockApi.saveDocument({ ...validation.data, progress: 55 });
             store.addDocument(result);
           }
           store.setState({ draft: null });
@@ -172,6 +556,12 @@ export const openDocumentEditor = ({ type = 'RPP', document = null } = {}) => {
           hideLoading();
         }
       });
+
+      selectedDocs().forEach(inheritMetadata);
+      ensureUnits();
+      renderSources();
+      renderUnits();
+      updateTotalWarning();
     },
   });
 };
