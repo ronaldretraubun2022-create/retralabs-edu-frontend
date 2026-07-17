@@ -1,8 +1,8 @@
 import { schoolProfile } from '../data/demo.js';
 import { DEFAULT_SCHOOL_ID, getSubjectCodeForLevel, subjectMasterByLevel } from './education.js';
 
-export const APP_VERSION = '1.4.0';
-export const STORAGE_SCHEMA_VERSION = '1.4.0';
+export const APP_VERSION = '1.5.0';
+export const STORAGE_SCHEMA_VERSION = '1.5.0';
 
 export const documentTypes = ['CP', 'ACP', 'TP', 'ATP', 'PROTA', 'PROSEM', 'RPP', 'MODUL', 'KKTP', 'ASESMEN'];
 
@@ -116,6 +116,9 @@ export const getSourceDocuments = (documents = [], values = {}) => {
     if (item.status === 'archived') return false;
     if ((item.schoolId || DEFAULT_SCHOOL_ID) !== (values.schoolId || DEFAULT_SCHOOL_ID)) return false;
     if ((item.educationLevel || '') !== (values.educationLevel || '')) return false;
+    if (values.teacherId && (item.teacherId || '') !== values.teacherId) return false;
+    if (values.subjectId && (item.subjectId || '') !== values.subjectId) return false;
+    if (values.classroomId && (item.classroomId || '') !== values.classroomId) return false;
     const includeSemester = values.type !== 'PROTA';
     return ['subject', 'className', 'phase', 'academicYear']
       .every((key) => !values[key] || String(item[key] || '') === String(values[key] || '')) &&
@@ -137,6 +140,9 @@ export const inheritFromSource = (source = {}) => ({
   semester: source.semester || schoolProfile.semester,
   schoolId: source.schoolId || DEFAULT_SCHOOL_ID,
   educationLevel: source.educationLevel || 'SMK',
+  teacherId: source.teacherId || '',
+  subjectId: source.subjectId || '',
+  classroomId: source.classroomId || '',
   teacher: source.teacher || '',
 });
 
@@ -165,6 +171,9 @@ export const buildWorkflowIssues = (document = {}, documents = []) => {
     if (!expectedSources.includes(source.type)) issues.push(`Tipe sumber ${getDocumentCode(source)} harus ${expectedSources.join(' atau ')}.`);
     if ((source.schoolId || DEFAULT_SCHOOL_ID) !== (document.schoolId || DEFAULT_SCHOOL_ID)) issues.push(`Sekolah berbeda dengan ${getDocumentCode(source)}.`);
     if ((source.educationLevel || '') !== (document.educationLevel || '')) issues.push(`Jenjang berbeda dengan ${getDocumentCode(source)}.`);
+    if ((source.teacherId || '') !== (document.teacherId || '')) issues.push(`Guru berbeda dengan ${getDocumentCode(source)}.`);
+    if ((source.subjectId || '') !== (document.subjectId || '')) issues.push(`Mata pelajaran ID berbeda dengan ${getDocumentCode(source)}.`);
+    if ((source.classroomId || '') !== (document.classroomId || '')) issues.push(`Kelas ID berbeda dengan ${getDocumentCode(source)}.`);
     if (source.subject !== document.subject) issues.push(`Mata pelajaran berbeda dengan ${getDocumentCode(source)}.`);
     if (source.className !== document.className) issues.push(`Kelas berbeda dengan ${getDocumentCode(source)}.`);
     if (source.phase !== document.phase) issues.push(`Fase berbeda dengan ${getDocumentCode(source)}.`);

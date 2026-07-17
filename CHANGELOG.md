@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.0 - 2026-07-18
+
+- Menambahkan schema perangkat ajar lengkap untuk CP, ACP, TP, ATP, PROTA, PROSEM, RPP, Modul Ajar, KKTP, dan Asesmen.
+- Menambahkan master reference `teacherId`, `subjectId`, dan `classroomId` pada dokumen tanpa mengubah relasi internal `sourceIds`.
+- Memperketat filter sumber dokumen berdasarkan `schoolId`, `educationLevel`, `teacherId`, `subjectId`, `classroomId`, fase, tahun ajaran, dan semester.
+- Menambahkan migrasi idempotent v1.4.0 ke v1.5.0 untuk melengkapi ID guru, mapel, dan kelas pada data lama.
+- Menambahkan seed perangkat lengkap SMK dari PROTA sampai Asesmen tanpa duplikasi.
+- Menambahkan test Phase 3 untuk migrasi master refs, filter sumber berbasis ID, rantai dokumen lengkap, dan perlindungan kode `MAPEL`.
+
 ## 1.4.0 - 2026-07-18
 
 - Menambahkan mode multi-jenjang SD, SMP, SMA, dan SMK.

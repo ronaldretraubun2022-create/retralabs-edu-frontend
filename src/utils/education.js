@@ -2,6 +2,14 @@ export const EDUCATION_LEVELS = ['SD', 'SMP', 'SMA', 'SMK'];
 
 export const DEFAULT_SCHOOL_ID = 'school-smk-merauke';
 
+export const toStableId = (prefix, value = '') =>
+  `${prefix}-${String(value || 'umum')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'umum'}`;
+
 export const schoolSeeds = [
   {
     id: 'school-sd-merauke',
@@ -65,6 +73,25 @@ export const classMaster = {
   SMP: ['VII A', 'VIII A', 'IX A'],
   SMA: ['X A', 'XI A', 'XII A'],
   SMK: ['X ATPH 1', 'X ATPH 2', 'X TKJ 1', 'XI ATPH 1', 'XI TKJ 1', 'XII ATPH 1', 'XIII ATPH 1'],
+};
+
+export const teacherMasterByLevel = {
+  SD: [
+    { id: 'teacher-sd-yohana', name: 'Yohana Wati, S.Pd.', role: 'Guru Kelas' },
+    { id: 'teacher-sd-maria-ipas', name: 'Maria Lina, S.Pd.', role: 'Guru Mapel' },
+  ],
+  SMP: [
+    { id: 'teacher-smp-agus', name: 'Agus Salim, S.Pd.', role: 'Guru Mapel' },
+    { id: 'teacher-smp-rina-inf', name: 'Rina Kurnia, S.Kom.', role: 'Guru Informatika' },
+  ],
+  SMA: [
+    { id: 'teacher-sma-kristina', name: 'Kristina Bela, M.Pd.', role: 'Guru Mapel Wajib' },
+    { id: 'teacher-sma-fisika', name: 'Daniel Wanggai, S.Pd.', role: 'Guru Mapel Pilihan' },
+  ],
+  SMK: [
+    { id: 'teacher-smk-ronald', name: 'Ronald Retraubun', role: 'Guru Produktif' },
+    { id: 'teacher-smk-agri', name: 'Yosep Wenda, S.P.', role: 'Guru Kejuruan' },
+  ],
 };
 
 export const subjectMasterByLevel = {
@@ -156,6 +183,36 @@ export const getClassesForSchool = (school = {}) => classMaster[school.education
 export const getSubjectObjectsForSchool = (school = {}) => subjectMasterByLevel[school.educationLevel || school.level] || [];
 
 export const getSubjectsForSchool = (school = {}) => getSubjectObjectsForSchool(school).map((item) => item.name);
+
+export const getTeacherOptionsForSchool = (school = {}) => teacherMasterByLevel[school.educationLevel || school.level] || [];
+
+export const getClassroomIdForSchool = (school = {}, className = '') =>
+  toStableId(`${school.id || DEFAULT_SCHOOL_ID}-class`, className);
+
+export const getSubjectIdForSchool = (school = {}, subject = '') => {
+  const subjectObject = getSubjectObjectsForSchool(school).find((item) => item.name === subject);
+  return subjectObject?.id || toStableId(`${school.id || DEFAULT_SCHOOL_ID}-subject`, subjectObject?.code || subject);
+};
+
+export const getTeacherIdForSchool = (school = {}, teacherName = '') => {
+  const teachers = getTeacherOptionsForSchool(school);
+  return teachers.find((item) => item.name === teacherName)?.id || teachers[0]?.id || toStableId(`${school.id || DEFAULT_SCHOOL_ID}-teacher`, teacherName || 'default');
+};
+
+export const getTeacherNameById = (school = {}, teacherId = '') =>
+  getTeacherOptionsForSchool(school).find((item) => item.id === teacherId)?.name || '';
+
+export const resolveDocumentMasterRefs = (document = {}, schools = schoolSeeds) => {
+  const school = schools.find((item) => item.id === (document.schoolId || DEFAULT_SCHOOL_ID)) || schools.find((item) => item.id === DEFAULT_SCHOOL_ID) || schoolSeeds.at(-1);
+  return {
+    schoolId: document.schoolId || school.id,
+    educationLevel: document.educationLevel || school.educationLevel || school.level,
+    subjectId: document.subjectId || getSubjectIdForSchool(school, document.subject),
+    classroomId: document.classroomId || getClassroomIdForSchool(school, document.className),
+    teacherId: document.teacherId || getTeacherIdForSchool(school, document.teacher),
+    teacher: document.teacher || getTeacherNameById(school, document.teacherId) || getTeacherOptionsForSchool(school)[0]?.name || '',
+  };
+};
 
 export const getSubjectCodeForLevel = (subject, educationLevel) => {
   const subjects = subjectMasterByLevel[educationLevel] || [];
@@ -381,5 +438,180 @@ export const phase2DocumentSeeds = [
     updatedAt: '2026-07-18T10:30:00',
     status: 'draft',
     progress: 65,
+  },
+];
+
+export const phase3DocumentSeeds = [
+  {
+    id: 'DOC-PROTA-INF-XATPH1-E-01',
+    code: 'PROTA-INF-E-01',
+    type: 'PROTA',
+    title: 'PROTA Informatika X ATPH 1',
+    subject: 'Informatika',
+    subjectId: 'school-smk-merauke-subject-inf',
+    className: 'X ATPH 1',
+    classroomId: 'school-smk-merauke-class-x-atph-1',
+    phase: 'E',
+    schoolId: DEFAULT_SCHOOL_ID,
+    educationLevel: 'SMK',
+    teacher: 'Ronald Retraubun',
+    teacherId: 'teacher-smk-ronald',
+    academicYear: '2026/2027',
+    semester: 'Ganjil',
+    topic: 'Program Tahunan Informatika',
+    duration: '8 JP',
+    totalJp: 8,
+    sourceIds: ['DOC-ATP-INF-XATPH1-E-02'],
+    referenceIds: ['DOC-ATP-INF-XATPH1-E-02'],
+    units: [
+      { id: 'prota-unit-inf-1', tpId: 'DOC-TP-INF-XATPH1-E-03', title: 'Dekomposisi dan Pengenalan Pola', jp: 4, month: 'Juli', note: 'Semester ganjil' },
+      { id: 'prota-unit-inf-2', tpId: 'DOC-TP-INF-XATPH1-E-04', title: 'Perancangan dan Evaluasi Algoritma', jp: 4, month: 'Agustus', note: 'Semester ganjil' },
+    ],
+    content: 'Program tahunan Informatika disusun dari ATP aktif dan menjadi dasar distribusi semester.',
+    updatedAt: '2026-07-18T11:00:00',
+    status: 'draft',
+    progress: 70,
+  },
+  {
+    id: 'DOC-PROSEM-INF-XATPH1-E-01',
+    code: 'PROSEM-INF-E-01',
+    type: 'PROSEM',
+    title: 'PROSEM Informatika X ATPH 1 Ganjil',
+    subject: 'Informatika',
+    subjectId: 'school-smk-merauke-subject-inf',
+    className: 'X ATPH 1',
+    classroomId: 'school-smk-merauke-class-x-atph-1',
+    phase: 'E',
+    schoolId: DEFAULT_SCHOOL_ID,
+    educationLevel: 'SMK',
+    teacher: 'Ronald Retraubun',
+    teacherId: 'teacher-smk-ronald',
+    academicYear: '2026/2027',
+    semester: 'Ganjil',
+    topic: 'Distribusi Minggu Efektif Informatika',
+    duration: '8 JP',
+    totalJp: 8,
+    sourceIds: ['DOC-PROTA-INF-XATPH1-E-01'],
+    referenceIds: ['DOC-PROTA-INF-XATPH1-E-01'],
+    schedules: [
+      { id: 'prosem-week-inf-1', tpId: 'DOC-TP-INF-XATPH1-E-03', title: 'Dekomposisi dan Pengenalan Pola', jp: 4, month: 'Juli', week: 2, schedule: 'Minggu efektif 2', assessment: 'Formatif', note: '' },
+      { id: 'prosem-week-inf-2', tpId: 'DOC-TP-INF-XATPH1-E-04', title: 'Perancangan dan Evaluasi Algoritma', jp: 4, month: 'Agustus', week: 1, schedule: 'Minggu efektif 5', assessment: 'Kinerja', note: '' },
+    ],
+    content: 'Program semester memetakan unit PROTA ke minggu efektif semester ganjil.',
+    updatedAt: '2026-07-18T11:05:00',
+    status: 'draft',
+    progress: 72,
+  },
+  {
+    id: 'DOC-RPP-INF-XATPH1-E-01',
+    code: 'RPP-INF-E-01',
+    type: 'RPP',
+    title: 'RPP Dekomposisi dan Pengenalan Pola',
+    subject: 'Informatika',
+    subjectId: 'school-smk-merauke-subject-inf',
+    className: 'X ATPH 1',
+    classroomId: 'school-smk-merauke-class-x-atph-1',
+    phase: 'E',
+    schoolId: DEFAULT_SCHOOL_ID,
+    educationLevel: 'SMK',
+    teacher: 'Ronald Retraubun',
+    teacherId: 'teacher-smk-ronald',
+    academicYear: '2026/2027',
+    semester: 'Ganjil',
+    topic: 'Dekomposisi Masalah',
+    duration: '4 JP',
+    totalJp: 4,
+    sourceIds: ['DOC-PROSEM-INF-XATPH1-E-01'],
+    referenceIds: ['DOC-PROSEM-INF-XATPH1-E-01'],
+    learningObjectives: 'Peserta didik mampu memecah masalah menjadi bagian kecil.',
+    learningActivities: 'Pendahuluan, eksplorasi masalah, diskusi kelompok, refleksi.',
+    assessmentPlan: 'Observasi proses, lembar kerja, dan presentasi solusi.',
+    content: 'RPP disusun dari PROSEM aktif untuk pertemuan dekomposisi dan pengenalan pola.',
+    updatedAt: '2026-07-18T11:10:00',
+    status: 'draft',
+    progress: 75,
+  },
+  {
+    id: 'DOC-MODUL-INF-XATPH1-E-01',
+    code: 'MODUL-INF-E-01',
+    type: 'MODUL',
+    title: 'Modul Ajar Algoritma Dasar',
+    subject: 'Informatika',
+    subjectId: 'school-smk-merauke-subject-inf',
+    className: 'X ATPH 1',
+    classroomId: 'school-smk-merauke-class-x-atph-1',
+    phase: 'E',
+    schoolId: DEFAULT_SCHOOL_ID,
+    educationLevel: 'SMK',
+    teacher: 'Ronald Retraubun',
+    teacherId: 'teacher-smk-ronald',
+    academicYear: '2026/2027',
+    semester: 'Ganjil',
+    topic: 'Algoritma Dasar',
+    duration: '4 JP',
+    totalJp: 4,
+    sourceIds: ['DOC-PROSEM-INF-XATPH1-E-01'],
+    referenceIds: ['DOC-PROSEM-INF-XATPH1-E-01'],
+    learningObjectives: 'Peserta didik merancang algoritma sederhana.',
+    learningActivities: 'Studi kasus, praktik pseudocode, dan evaluasi langkah.',
+    assessmentPlan: 'Rubrik kinerja dan produk algoritma.',
+    content: 'Modul ajar memuat tujuan, aktivitas, bahan ajar, dan asesmen dari PROSEM.',
+    updatedAt: '2026-07-18T11:12:00',
+    status: 'draft',
+    progress: 75,
+  },
+  {
+    id: 'DOC-KKTP-INF-XATPH1-E-01',
+    code: 'KKTP-INF-E-01',
+    type: 'KKTP',
+    title: 'KKTP Informatika Berpikir Komputasional',
+    subject: 'Informatika',
+    subjectId: 'school-smk-merauke-subject-inf',
+    className: 'X ATPH 1',
+    classroomId: 'school-smk-merauke-class-x-atph-1',
+    phase: 'E',
+    schoolId: DEFAULT_SCHOOL_ID,
+    educationLevel: 'SMK',
+    teacher: 'Ronald Retraubun',
+    teacherId: 'teacher-smk-ronald',
+    academicYear: '2026/2027',
+    semester: 'Ganjil',
+    topic: 'Kriteria Berpikir Komputasional',
+    duration: '2 JP',
+    totalJp: 2,
+    sourceIds: ['DOC-TP-INF-XATPH1-E-03', 'DOC-TP-INF-XATPH1-E-04'],
+    referenceIds: ['DOC-TP-INF-XATPH1-E-03', 'DOC-TP-INF-XATPH1-E-04'],
+    kktpCriteria: 'Tuntas bila peserta didik mampu menjelaskan dekomposisi, pola, dan algoritma dengan benar.',
+    content: 'KKTP memuat indikator ketercapaian, bukti belajar, dan ambang ketercapaian TP.',
+    updatedAt: '2026-07-18T11:15:00',
+    status: 'draft',
+    progress: 70,
+  },
+  {
+    id: 'DOC-ASESMEN-INF-XATPH1-E-01',
+    code: 'ASESMEN-INF-E-01',
+    type: 'ASESMEN',
+    title: 'Asesmen Informatika Berpikir Komputasional',
+    subject: 'Informatika',
+    subjectId: 'school-smk-merauke-subject-inf',
+    className: 'X ATPH 1',
+    classroomId: 'school-smk-merauke-class-x-atph-1',
+    phase: 'E',
+    schoolId: DEFAULT_SCHOOL_ID,
+    educationLevel: 'SMK',
+    teacher: 'Ronald Retraubun',
+    teacherId: 'teacher-smk-ronald',
+    academicYear: '2026/2027',
+    semester: 'Ganjil',
+    topic: 'Asesmen Algoritma',
+    duration: '2 JP',
+    totalJp: 2,
+    sourceIds: ['DOC-KKTP-INF-XATPH1-E-01'],
+    referenceIds: ['DOC-KKTP-INF-XATPH1-E-01'],
+    assessmentPlan: 'Tes praktik, rubrik performa, dan refleksi mandiri.',
+    content: 'Asesmen mengambil KKTP sebagai dasar indikator dan bukti belajar.',
+    updatedAt: '2026-07-18T11:20:00',
+    status: 'draft',
+    progress: 70,
   },
 ];

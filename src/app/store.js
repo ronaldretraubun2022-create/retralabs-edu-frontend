@@ -1,6 +1,6 @@
 import { documents as demoDocuments, schoolProfile } from '../data/demo.js';
 import { APP_VERSION, STORAGE_SCHEMA_VERSION, generateDocumentCode, getDocumentCode, normalizeIds, subjectCode } from '../utils/workflow.js';
-import { DEFAULT_SCHOOL_ID, getActiveSchool, phase2DocumentSeeds, schoolSeeds } from '../utils/education.js';
+import { DEFAULT_SCHOOL_ID, getActiveSchool, phase2DocumentSeeds, phase3DocumentSeeds, resolveDocumentMasterRefs, schoolSeeds } from '../utils/education.js';
 
 const STORAGE_KEY = 'retralabs-edu-state-v1';
 
@@ -32,6 +32,7 @@ const migrateDocuments = (documents = [], { seedPhase2 = false } = {}) => {
   const seededDocuments = [
     ...documents,
     ...(seedPhase2 ? phase2DocumentSeeds.filter((document) => !existingSeedIds.has(document.id)) : []),
+    ...(seedPhase2 ? phase3DocumentSeeds.filter((document) => !existingSeedIds.has(document.id)) : []),
   ];
   if (seededDocuments.length !== documents.length) changed = true;
 
@@ -131,10 +132,16 @@ const migrateState = (saved = {}) => {
   const migrated = migrateDocuments(merged.documents, {
     seedPhase2: saved.schemaVersion !== STORAGE_SCHEMA_VERSION || saved.appVersion !== APP_VERSION,
   });
+  const documentsWithMasterRefs = migrated.documents.map((document) => ({
+    ...document,
+    ...resolveDocumentMasterRefs(document, schools),
+  }));
+  const masterRefsChanged = JSON.stringify(documentsWithMasterRefs) !== JSON.stringify(migrated.documents);
   return {
-    state: { ...merged, documents: migrated.documents },
+    state: { ...merged, documents: documentsWithMasterRefs },
     changed:
       migrated.changed ||
+      masterRefsChanged ||
       saved.appVersion !== APP_VERSION ||
       saved.schemaVersion !== STORAGE_SCHEMA_VERSION ||
       saved.activeSchoolId !== activeSchool.id ||

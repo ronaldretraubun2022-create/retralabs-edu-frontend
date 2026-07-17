@@ -5,8 +5,13 @@ import { escapeHtml } from '../utils/format.js';
 import {
   getActiveSchool,
   getClassesForSchool,
+  getClassroomIdForSchool,
   getPhaseForClass,
+  getSubjectIdForSchool,
   getSubjectsForSchool,
+  getTeacherIdForSchool,
+  getTeacherNameById,
+  getTeacherOptionsForSchool,
   levelTemplateLabel,
   validateSchoolClassPhase,
 } from '../utils/education.js';
@@ -48,6 +53,70 @@ const field = ({ label, name, value = '', type = 'text', options = [], placehold
     <p data-error-for="${name}" class="field-error"></p>
   </label>
 `;
+
+const optionField = ({ label, name, value = '', options = [], requiredMark = true, readonly = false }) => `
+  <label class="block">
+    <span class="form-label">${label}${requiredMark ? ' <span class="text-rose-500">*</span>' : ''}</span>
+    <select name="${name}" class="form-select" ${readonly ? 'disabled' : ''}>
+      <option value="">Pilih ${label.toLowerCase()}</option>
+      ${options.map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === value ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
+    </select>
+    <p data-error-for="${name}" class="field-error"></p>
+  </label>
+`;
+
+const textAreaField = ({ label, name, value = '', rows = 3, placeholder = '', requiredMark = false, readonly = false }) => `
+  <label class="block">
+    <span class="form-label">${label}${requiredMark ? ' <span class="text-rose-500">*</span>' : ''}</span>
+    <textarea name="${name}" rows="${rows}" class="form-input resize-y" placeholder="${escapeHtml(placeholder)}" ${readonly ? 'readonly' : ''}>${escapeHtml(value)}</textarea>
+    <p data-error-for="${name}" class="field-error"></p>
+  </label>
+`;
+
+const detailFields = (type, values, readonly) => {
+  const common = {
+    ACP: [
+      ['Analisis CP', 'analysisNotes', 'Uraikan kompetensi, konten, dan konteks pembelajaran.'],
+      ['Elemen Turunan', 'derivedElements', 'Tuliskan elemen hasil analisis.'],
+    ],
+    TP: [
+      ['Tujuan Pembelajaran', 'learningObjectives', 'Rumusan tujuan pembelajaran operasional.'],
+      ['Indikator TP', 'tpIndicators', 'Indikator ketercapaian tujuan pembelajaran.'],
+    ],
+    ATP: [
+      ['Rasional Alur', 'flowRationale', 'Alasan urutan TP dan kesinambungan materi.'],
+      ['Strategi Pembelajaran', 'learningStrategy', 'Strategi utama dalam alur pembelajaran.'],
+    ],
+    RPP: [
+      ['Tujuan Pembelajaran', 'learningObjectives', 'Tujuan pertemuan atau rangkaian pertemuan.'],
+      ['Kegiatan Pembelajaran', 'learningActivities', 'Pendahuluan, inti, dan penutup.'],
+      ['Rencana Asesmen', 'assessmentPlan', 'Formatif, sumatif, rubrik, atau instrumen.'],
+    ],
+    MODUL: [
+      ['Tujuan Pembelajaran', 'learningObjectives', 'Tujuan dalam modul ajar.'],
+      ['Pemantik dan Aktivitas', 'learningActivities', 'Pertanyaan pemantik, langkah belajar, diferensiasi.'],
+      ['Rencana Asesmen', 'assessmentPlan', 'Formatif, sumatif, dan tindak lanjut.'],
+    ],
+    KKTP: [
+      ['Kriteria Ketercapaian', 'kktpCriteria', 'Kriteria, bukti belajar, dan ambang ketercapaian.'],
+      ['Tindak Lanjut', 'followUpPlan', 'Remedial, pengayaan, atau intervensi.'],
+    ],
+    ASESMEN: [
+      ['Rencana Asesmen', 'assessmentPlan', 'Bentuk, teknik, instrumen, dan rubrik asesmen.'],
+      ['Instruksi Peserta Didik', 'studentInstructions', 'Instruksi pelaksanaan asesmen.'],
+    ],
+  };
+  const fields = common[type] || [];
+  if (!fields.length) return '';
+  return `
+    <section class="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+      <h3 class="text-sm font-black text-slate-950 dark:text-white">Detail ${type}</h3>
+      <div class="mt-4 grid gap-4 ${fields.length > 1 ? 'lg:grid-cols-2' : ''}">
+        ${fields.map(([label, name, placeholder]) => textAreaField({ label, name, value: values[name] || '', placeholder, readonly })).join('')}
+      </div>
+    </section>
+  `;
+};
 
 const statusBadge = (status) => {
   const [label, className, icon] = statusConfig[status] || statusConfig.draft;
@@ -102,6 +171,7 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
   const activeSchool = getActiveSchool(state);
   const classes = getClassesForSchool(activeSchool);
   const subjects = getSubjectsForSchool(activeSchool);
+  const teachers = getTeacherOptionsForSchool(activeSchool);
   const readonly = document?.status === 'approved';
   const inherited = sourceDocument ? inheritFromSource(sourceDocument, type) : {};
   const draft = !document && !sourceDocument ? state.draft : null;
@@ -120,7 +190,10 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
     semester: document?.semester || draft?.semester || inherited.semester || state.activeSemester || schoolProfile.semester,
     schoolId: document?.schoolId || draft?.schoolId || inherited.schoolId || activeSchool.id,
     educationLevel: initialEducationLevel,
-    teacher: document?.teacher || draft?.teacher || inherited.teacher || '',
+    teacherId: document?.teacherId || draft?.teacherId || inherited.teacherId || getTeacherIdForSchool(activeSchool, document?.teacher || draft?.teacher || inherited.teacher || ''),
+    teacher: document?.teacher || draft?.teacher || inherited.teacher || getTeacherNameById(activeSchool, document?.teacherId || draft?.teacherId || inherited.teacherId) || teachers[0]?.name || '',
+    subjectId: document?.subjectId || draft?.subjectId || inherited.subjectId || getSubjectIdForSchool(activeSchool, document?.subject || draft?.subject || inherited.subject || ''),
+    classroomId: document?.classroomId || draft?.classroomId || inherited.classroomId || getClassroomIdForSchool(activeSchool, initialClassName),
     teacherRole: document?.teacherRole || draft?.teacherRole || '',
     electiveGroup: document?.electiveGroup || draft?.electiveGroup || '',
     expertiseField: document?.expertiseField || draft?.expertiseField || activeSchool.expertiseField || '',
@@ -133,6 +206,17 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
     totalJp: Number(document?.totalJp || draft?.totalJp || parseJp(sourceDocument?.duration) || 2),
     content: document?.content || draft?.content || '',
     elements: Array.isArray(document?.elements) ? document.elements.join('\n') : (draft?.elements || ''),
+    analysisNotes: document?.analysisNotes || draft?.analysisNotes || '',
+    derivedElements: document?.derivedElements || draft?.derivedElements || '',
+    learningObjectives: document?.learningObjectives || draft?.learningObjectives || '',
+    tpIndicators: document?.tpIndicators || draft?.tpIndicators || '',
+    flowRationale: document?.flowRationale || draft?.flowRationale || '',
+    learningStrategy: document?.learningStrategy || draft?.learningStrategy || '',
+    learningActivities: document?.learningActivities || draft?.learningActivities || '',
+    assessmentPlan: document?.assessmentPlan || draft?.assessmentPlan || '',
+    kktpCriteria: document?.kktpCriteria || draft?.kktpCriteria || '',
+    followUpPlan: document?.followUpPlan || draft?.followUpPlan || '',
+    studentInstructions: document?.studentInstructions || draft?.studentInstructions || '',
   };
   if (!initialValues.code) {
     initialValues.code = generateDocumentCode({
@@ -162,6 +246,9 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
       <form data-document-form class="space-y-6" novalidate>
         <input type="hidden" name="schoolId" value="${escapeHtml(initialValues.schoolId)}" />
         <input type="hidden" name="educationLevel" value="${escapeHtml(initialValues.educationLevel)}" />
+        <input type="hidden" name="subjectId" value="${escapeHtml(initialValues.subjectId)}" />
+        <input type="hidden" name="classroomId" value="${escapeHtml(initialValues.classroomId)}" />
+        <input type="hidden" name="teacher" value="${escapeHtml(initialValues.teacher)}" />
         <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
           <div>
             <p class="text-xs font-black uppercase tracking-wider text-brand-600 dark:text-brand-400">${escapeHtml(activeSchool.educationLevel)} / ${escapeHtml(activeSchool.name)} / ${escapeHtml(initialType)}</p>
@@ -178,7 +265,7 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
           ${field({ label: 'Fase', name: 'phase', value: initialValues.phase, options: phases, readonly })}
           ${field({ label: 'Tahun Ajaran', name: 'academicYear', value: initialValues.academicYear, readonly })}
           ${field({ label: 'Semester', name: 'semester', value: initialValues.semester, options: semesters, readonly })}
-          ${field({ label: 'Nama Guru', name: 'teacher', value: initialValues.teacher, placeholder: 'Nama guru pengampu', readonly })}
+          ${optionField({ label: 'Guru Pengampu', name: 'teacherId', value: initialValues.teacherId, options: teachers.map((teacher) => ({ value: teacher.id, label: `${teacher.name} - ${teacher.role}` })), readonly })}
         </div>
 
         ${activeSchool.educationLevel === 'SD' ? `
@@ -233,6 +320,8 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
           ${field({ label: 'Total Alokasi JP', name: 'totalJp', value: initialValues.totalJp, type: 'number', readonly })}
         </div>
         <p data-total-warning class="-mt-3 text-xs font-semibold text-amber-600 dark:text-amber-400"></p>
+
+        ${detailFields(initialType, initialValues, readonly)}
 
         <label class="block" data-cp-elements>
           <span class="form-label">Elemen CP <span class="text-rose-500">*</span></span>
@@ -300,6 +389,14 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
 
       const selectedDocs = () => selectedSourceIds.map((id) => findByIdOrCode(store.getState().documents, id)).filter(Boolean);
 
+      const syncMasterRefs = () => {
+        if (form.elements.subjectId) form.elements.subjectId.value = getSubjectIdForSchool(activeSchool, form.elements.subject.value);
+        if (form.elements.classroomId) form.elements.classroomId.value = getClassroomIdForSchool(activeSchool, form.elements.className.value);
+        if (form.elements.teacher && form.elements.teacherId) {
+          form.elements.teacher.value = getTeacherNameById(activeSchool, form.elements.teacherId.value);
+        }
+      };
+
       const syncCode = () => {
         if (readonly || codeTouched) return;
         const data = currentValues();
@@ -330,7 +427,11 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
         ['subject', 'className', 'phase', 'academicYear', 'semester', 'teacher', 'schoolId', 'educationLevel'].forEach((key) => {
           if (form.elements[key]) form.elements[key].value = inheritedValues[key] || form.elements[key].value;
         });
+        if (form.elements.teacherId && inheritedValues.teacherId) form.elements.teacherId.value = inheritedValues.teacherId;
+        if (form.elements.subjectId && inheritedValues.subjectId) form.elements.subjectId.value = inheritedValues.subjectId;
+        if (form.elements.classroomId && inheritedValues.classroomId) form.elements.classroomId.value = inheritedValues.classroomId;
         if (!form.elements.topic.value) form.elements.topic.value = source.topic || source.title;
+        syncMasterRefs();
         syncCode();
       };
 
@@ -529,6 +630,9 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
         ['type', 'code', 'subject', 'className', 'phase', 'academicYear', 'semester', 'topic', 'content'].forEach((key) => {
           if (!String(data[key] || '').trim()) errors[key] = `${key === 'className' ? 'Kelas' : key} wajib diisi.`;
         });
+        ['teacherId', 'subjectId', 'classroomId', 'schoolId', 'educationLevel'].forEach((key) => {
+          if (!String(data[key] || '').trim()) errors[key] = `${key} wajib tersedia.`;
+        });
         if (data.code.includes('-MAPEL-')) errors.code = 'Kode mata pelajaran harus memakai kode Data Master, bukan MAPEL.';
         if (store.getState().documents.some((item) => item.id !== document?.id && getDocumentCode(item) === data.code)) errors.code = 'Kode dokumen harus unik.';
         const classPhaseError = validateSchoolClassPhase({ school: activeSchool, className: data.className, phase: data.phase });
@@ -558,10 +662,16 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
             const nextPhase = getPhaseForClass(activeSchool.educationLevel, form.elements.className.value);
             if (nextPhase) form.elements.phase.value = nextPhase;
           }
+          syncMasterRefs();
           syncCode();
           renderSources();
           renderUnits();
         });
+      });
+      form.elements.teacherId?.addEventListener('change', () => {
+        syncMasterRefs();
+        selectedSourceIds = [];
+        renderSources();
       });
       form.elements.code.addEventListener('input', () => { codeTouched = true; });
       form.elements.totalJp.addEventListener('input', () => { manualTotalJp = true; updateTotalWarning(); });
@@ -626,6 +736,7 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
       });
 
       selectedDocs().forEach(inheritMetadata);
+      syncMasterRefs();
       ensureUnits();
       renderSources();
       renderUnits();

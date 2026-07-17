@@ -2,7 +2,7 @@
 
 Frontend SaaS modern untuk administrasi guru dan perangkat ajar Kurikulum Merdeka. Dibangun dengan Vite, Tailwind CSS, Vanilla JavaScript, Chart.js, Lucide Icons, dan localStorage.
 
-Versi aplikasi: 1.4.0
+Versi aplikasi: 1.5.0
 
 ## Fitur Utama
 
@@ -11,6 +11,8 @@ Versi aplikasi: 1.4.0
 - Pemetaan fase otomatis: SD A-C, SMP D, SMA/SMK E-F.
 - Data Master kelas dan mata pelajaran mengikuti sekolah dan jenjang aktif.
 - Field kontekstual: guru kelas hanya SD, kelompok pilihan SMA, dan bidang/program/konsentrasi/mitra/sertifikasi hanya SMK.
+- Perangkat ajar lengkap: CP, ACP, TP, ATP, PROTA, PROSEM, RPP, Modul Ajar, KKTP, dan Asesmen.
+- Filter sumber memakai `schoolId`, `educationLevel`, `teacherId`, `subjectId`, `classroomId`, fase, tahun ajaran, dan semester.
 - Generator kode dokumen berbasis Data Master mata pelajaran, fase, jenis dokumen, tahun ajaran, dan semester.
 - Migrasi localStorage aman dan idempotent dari schema lama.
 - Relasi dokumen memakai internal ID; kode dokumen tetap dapat diedit sebagai identifier unik.
@@ -49,6 +51,15 @@ src/
   utils/
     workflow.js
 ```
+
+## Migrasi 1.5.0
+
+Migrasi v1.4.0 ke v1.5.0 berjalan otomatis dan idempotent.
+
+- Dokumen lama dilengkapi `teacherId`, `subjectId`, dan `classroomId`.
+- Relasi `sourceIds` dan `referenceIds` tetap memakai ID internal.
+- Seed PROTA, PROSEM, RPP, Modul Ajar, KKTP, dan Asesmen ditambahkan tanpa duplikasi.
+- Data localStorage pengguna tidak dihapus, direset, atau diganti.
 
 ## Migrasi 1.4.0
 
@@ -98,6 +109,14 @@ npm run test:phase2
 ```
 
 Test mencakup pemetaan fase, filter sumber lintas sekolah, migrasi v1.3.0 ke v1.4.0, dan switching sekolah aktif.
+
+## Test Phase 3
+
+```bash
+npm run test:phase3
+```
+
+Test mencakup migrasi master reference, filter sumber berbasis ID, rantai perangkat ajar lengkap, dan proteksi kode `MAPEL`.
 
 ## Akun Demo
 
