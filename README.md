@@ -1,41 +1,88 @@
 # RetraLabs Edu Frontend
 
-Frontend SaaS modern untuk administrasi guru dan perangkat ajar Kurikulum Merdeka. Dibangun dengan Vite, Tailwind CSS, Vanilla JavaScript, Chart.js, Lucide Icons, dan localStorage.
+Frontend SaaS modern untuk administrasi guru dan perangkat ajar Kurikulum Merdeka. Dibangun dengan Vite, Tailwind CSS, Vanilla JavaScript, Chart.js, Lucide Icons, Backend API v0.6.0, dan fallback localStorage aman.
 
-Versi aplikasi: 1.7.0
+Versi aplikasi: 1.8.0
 
 ## Fitur Utama
 
 - Workflow CP -> ACP -> TP -> ATP -> PROTA -> PROSEM -> RPP/Modul Ajar -> KKTP -> Asesmen.
-- Multi-jenjang SD, SMP, SMA, dan SMK dengan pemilih sekolah aktif.
-- Pemetaan fase otomatis: SD A-C, SMP D, SMA/SMK E-F.
-- Data Master kelas dan mata pelajaran mengikuti sekolah dan jenjang aktif.
-- Field kontekstual: guru kelas hanya SD, kelompok pilihan SMA, dan bidang/program/konsentrasi/mitra/sertifikasi hanya SMK.
-- Perangkat ajar lengkap: CP, ACP, TP, ATP, PROTA, PROSEM, RPP, Modul Ajar, KKTP, dan Asesmen.
-- Filter sumber memakai `schoolId`, `educationLevel`, `teacherId`, `subjectId`, `classroomId`, fase, tahun ajaran, dan semester.
-- Generator kode dokumen berbasis Data Master mata pelajaran, fase, jenis dokumen, tahun ajaran, dan semester.
-- Migrasi localStorage aman dan idempotent dari schema lama.
-- Relasi dokumen memakai internal ID; kode dokumen tetap dapat diedit sebagai identifier unik.
-- Filter sumber ketat berdasarkan mata pelajaran, kelas, fase, tahun ajaran, dan semester.
-- ATP dapat memilih beberapa TP, mengatur urutan, dan menghitung total JP otomatis.
-- Editor PROTA dari ATP dengan tabel unit dinamis.
-- Editor PROSEM dari PROTA dengan distribusi bulan dan minggu efektif.
-- Status dokumen: Draf, Review, Perlu Revisi, Disetujui, Diarsipkan.
-- Proteksi hapus dokumen induk yang masih memiliki turunan.
-- Print engine terpisah dengan template per jenis dokumen dan jenjang.
-- Export Word/JSON, print PDF via browser, ukuran A4/F4, orientasi otomatis portrait/landscape, dan tema cetak.
-- Kalender Pendidikan modern per sekolah aktif, jenjang, tahun ajaran, dan semester.
-- Shell production dengan skip link, konteks halaman, mobile action sheet, preferensi density, dan reduced motion.
-- Dark mode, responsive layout, toast, validasi field, empty state konsisten, dan autosave.
+- Multi-jenjang SD, SMP, SMA, dan SMK dengan pemilih sekolah aktif dari backend.
+- Login, refresh access token, logout, logout semua perangkat, daftar sesi, dan bootstrap aplikasi.
+- Bootstrap `/api/v1/bootstrap` sebagai sumber user, activeSchool, schools, role, permissions, feature flags, subscription, quota, notification count, dan backend version.
+- Permission/feature guard untuk menu dan aksi dokumen, AI, billing, usage, audit, upload, export, review, approve, archive.
+- CRUD dokumen memakai API saat online dengan fallback lokal saat network unavailable.
+- Revision conflict menampilkan pilihan reload server data atau simpan salinan lokal.
+- Attachment/export service mendukung blob download dan filename sanitization.
+- AI generations, subscription plans, payments, usage, audit logs, notifications, sessions, dan migration route.
+- Migrasi localStorage 1.8.0 aman, idempotent, dengan backup dan laporan.
+- Dark mode, responsive layout, toast, loading, empty state, print, kalender, export, dan workflow editor tetap dipertahankan.
 
-## Stack
+## Environment
 
-- Vite
-- Tailwind CSS
-- Vanilla JavaScript ES Modules
-- Chart.js
-- Lucide Icons
-- localStorage
+`.env.example`:
+
+```text
+VITE_API_BASE_URL=http://localhost:3000/api/v1
+VITE_API_TIMEOUT_MS=30000
+VITE_AUTH_REFRESH_COOKIE=true
+VITE_ENABLE_LOCAL_FALLBACK=true
+VITE_APP_NAME=RetraLabs Edu
+```
+
+Tidak ada secret, password, refresh token, atau API key yang disimpan di `.env.example` atau localStorage.
+
+## Backend
+
+Backend lokal:
+
+```text
+http://localhost:3000
+```
+
+API prefix:
+
+```text
+/api/v1
+```
+
+OpenAPI source of truth:
+
+```text
+D:\Projects\retralabs-edu-backend\openapi.yaml
+```
+
+Smoke endpoint:
+
+```text
+GET /api/v1/health
+GET /api/v1/ready
+POST /api/v1/auth/login
+GET /api/v1/bootstrap
+GET /api/v1/documents
+GET /api/v1/notifications
+```
+
+## Auth dan Bootstrap
+
+- Login memakai `POST /auth/login`.
+- Access token disimpan hanya di memory API client.
+- Refresh token tidak disimpan di localStorage; frontend mengandalkan HTTP-only cookie bila backend menyediakannya.
+- Saat `ACCESS_TOKEN_EXPIRED`, API client menjalankan satu refresh promise untuk request concurrent lalu retry satu kali.
+- Refresh gagal membersihkan session frontend dan kembali ke `/login`.
+- Initial state aplikasi dimuat dari `GET /bootstrap`.
+- Active school berasal dari session/token backend, bukan tenant override pada endpoint lain.
+
+## Active School
+
+Flow switch school:
+
+1. Ambil sekolah dari bootstrap atau `/auth/schools`.
+2. Pengguna memilih sekolah di topbar.
+3. Frontend memanggil `PATCH /auth/active-school`.
+4. Access token baru disimpan di memory.
+5. Bootstrap dimuat ulang.
+6. Cache tenant lama dibersihkan.
 
 ## Struktur Penting
 
@@ -43,70 +90,55 @@ Versi aplikasi: 1.7.0
 src/
   app/
     api.js
+    backend-mappers.js
+    bootstrap.js
+    guards.js
     router.js
     store.js
-  components/
-    documentEditor.js
-  data/
-    demo.js
-  pages/
+  config/
+    api.js
+  services/
+    api-client.js
+    auth.js
+    bootstrap.js
+    crud-service.js
     documents.js
-    teachingTools.js
-  utils/
-    academicCalendar.js
-    documentTemplates.js
-    printConfig.js
-    printEngine.js
-    productionUi.js
-    workflow.js
+    domain-services.js
+  pages/
+    ai.js
+    approvals.js
+    audit.js
+    documents.js
+    migration.js
+    notifications.js
+    payments.js
+    sessions.js
+    subscription.js
+    usage.js
 ```
 
-## Migrasi 1.7.0
+## Permission dan Feature
 
-Migrasi v1.6.0 ke v1.7.0 berjalan otomatis dan idempotent.
+Guard tersedia di `src/app/guards.js`:
 
-- Menambahkan `uiPreferences` default tanpa mengubah dokumen, sekolah, kalender, atau print settings.
-- Preferensi UI mencakup density, reduced motion, dan konteks halaman.
-- Shell aplikasi diperkuat untuk desktop, tablet, mobile, dan aksesibilitas dasar.
-- Data localStorage pengguna tetap aman dan tidak dihapus.
+```js
+hasPermission(permission)
+hasAnyPermission(permissions)
+hasFeature(feature)
+canAccessRoute(route)
+canPerformAction(action)
+```
 
-## Migrasi 1.6.0
+Guard frontend hanya untuk UX. Backend tetap sumber keamanan final.
 
-Migrasi v1.5.0 ke v1.6.0 berjalan otomatis dan idempotent.
+## LocalStorage Migration 1.8.0
 
-- Menambahkan `printSettings` default tanpa mengubah dokumen lama.
-- Menambahkan seed `academicCalendarEvents` untuk SD, SMP, SMA, dan SMK tanpa duplikasi.
-- Ukuran kertas dibatasi pada A4 dan F4.
-- Orientasi cetak otomatis mengikuti jenis dokumen dan kepadatan tabel.
-- Data localStorage pengguna tetap aman dan tidak dihapus.
-
-## Migrasi 1.5.0
-
-Migrasi v1.4.0 ke v1.5.0 berjalan otomatis dan idempotent.
-
-- Dokumen lama dilengkapi `teacherId`, `subjectId`, dan `classroomId`.
-- Relasi `sourceIds` dan `referenceIds` tetap memakai ID internal.
-- Seed PROTA, PROSEM, RPP, Modul Ajar, KKTP, dan Asesmen ditambahkan tanpa duplikasi.
-- Data localStorage pengguna tidak dihapus, direset, atau diganti.
-
-## Migrasi 1.4.0
-
-Migrasi v1.3.0 ke v1.4.0 berjalan otomatis saat aplikasi membaca `localStorage`.
-
-- Sekolah existing dipertahankan sebagai SMK.
-- Dokumen lama diberi `schoolId` SMK dan `educationLevel` SMK.
-- Seed SD, SMP, dan SMA ditambahkan tanpa duplikasi.
-- Relasi tetap memakai internal ID dan data localStorage pengguna tidak dihapus.
-- Migrasi idempotent dan aman dijalankan berkali-kali.
-
-## Migrasi 1.3.0
-
-Migrasi berjalan otomatis saat aplikasi membaca `localStorage`.
-
-- `TP-MAPEL-E-04` dinormalisasi menjadi `TP-INF-E-04`.
-- `sourceIds` dan `referenceIds` yang masih memakai kode lama dikonversi ke internal ID dokumen.
-- Dokumen lama yang belum punya kode, tahun ajaran, semester, status, atau relasi aman dilengkapi.
-- Migrasi idempotent dan tidak menghapus data pengguna.
+- Backup otomatis dibuat sebelum schema localStorage naik ke 1.8.0.
+- Marker migrasi idempotent: `retralabs-edu-migration-1.8.0`.
+- Laporan migrasi tersedia di `#/settings/migration`.
+- Migrasi server bersifat opt-in dan tidak menimpa data server otomatis.
+- Local fallback hanya dipakai saat network unavailable atau draft lokal belum tersinkron.
+- Token, password, API key, dan secret tidak dipersist ke localStorage.
 
 ## Menjalankan
 
@@ -115,11 +147,13 @@ npm install
 npm run dev
 ```
 
-Buka alamat Vite, biasanya:
+Buka:
 
 ```text
 http://localhost:5173
 ```
+
+Login membutuhkan backend lokal aktif dan akun valid dari backend.
 
 ## Build Production
 
@@ -130,51 +164,43 @@ npm run preview
 
 Hasil build tersedia di folder `dist/`.
 
-## Test Phase 2
+## Test dan Verifikasi
 
 ```bash
-npm run test:phase2
+npm run lint
+npm run test
+npm run build
+npm audit --omit=dev
+git diff --check
+git status --short
 ```
 
-Test mencakup pemetaan fase, filter sumber lintas sekolah, migrasi v1.3.0 ke v1.4.0, dan switching sekolah aktif.
-
-## Test Phase 3
+Test Phase 6B:
 
 ```bash
-npm run test:phase3
+npm run test:phase6b
 ```
 
-Test mencakup migrasi master reference, filter sumber berbasis ID, rantai perangkat ajar lengkap, dan proteksi kode `MAPEL`.
+Test mencakup API client base URL, Bearer token, credentials include, requestId, idempotency key, blob download, concurrent refresh satu kali, guard permission/feature, migrasi localStorage, dan keamanan token.
 
-## Test Phase 4
+## Troubleshooting CORS
 
-```bash
-npm run test:phase4
-```
-
-Test mencakup konfigurasi A4/F4, orientasi print, template dokumen per jenjang, filter kalender, dan migrasi v1.5.0 ke v1.6.0.
-
-## Test Phase 5
-
-```bash
-npm run test:phase5
-```
-
-Test mencakup migrasi UI preference, shell production, mobile actions, reduced motion, empty state, versi 1.7.0, dan guard label AI.
-
-## Akun Demo
+Pastikan backend mengizinkan origin Vite:
 
 ```text
-Email    : admin@retralabs.id
-Password : retralabs123
+http://localhost:5173
 ```
 
-## Catatan Backend
+Aktifkan credentials/cookie pada backend karena frontend memakai `credentials: "include"`.
 
-Tahap ini belum memakai backend. Integrasi API dapat dipasang di:
+## Troubleshooting Backend Unavailable
 
-```text
-src/app/api.js
-```
+Jika backend mati atau timeout:
 
-Store lokal dapat diganti dengan state dari backend selama kontrak dokumen, `sourceIds`, `referenceIds`, dan metadata workflow dipertahankan.
+- UI menampilkan badge Offline.
+- Data lokal tetap bisa dibuka sebagai fallback bila `VITE_ENABLE_LOCAL_FALLBACK=true`.
+- localStorage tidak menjadi source of truth ketika backend tersedia kembali.
+
+## Troubleshooting 500
+
+UI menampilkan `requestId` bila backend mengirimkannya. Gunakan requestId untuk dukungan teknis backend.

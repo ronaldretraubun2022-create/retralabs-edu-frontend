@@ -1,4 +1,5 @@
-import { mockApi } from '../app/api.js';
+import { documentWorkflowApi } from '../app/api.js';
+import { friendlyApiMessage } from '../app/bootstrap.js';
 import { store } from '../app/store.js';
 import { schoolProfile } from '../data/demo.js';
 import { escapeHtml } from '../utils/format.js';
@@ -696,9 +697,9 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
         }
         showLoading('Template sedang menyusun draf');
         try {
-          const result = await mockApi.generateWithAi({ ...data, duration: formatJp(data.totalJp) });
-          form.elements.title.value = result.title;
-          contentField.value = result.content;
+          const result = await documentWorkflowApi.generateTemplate({ ...data, duration: formatJp(data.totalJp) });
+          form.elements.title.value = result.title || result.output?.title || form.elements.title.value;
+          contentField.value = result.content || result.output?.content || result.preview || contentField.value;
           count.textContent = `${result.content.length} karakter`;
           saveDraft();
           toast('Draf template berhasil dibuat.', 'success');
@@ -719,9 +720,10 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
         showLoading(document ? 'Menyimpan perubahan' : 'Membuat dokumen');
         try {
           if (document) {
-            store.updateDocument(document.id, { ...validation.data, progress: Math.max(document.progress || 45, 75) });
+            const result = await documentWorkflowApi.updateDocument(document.id, { ...validation.data, revision: document.revision, progress: Math.max(document.progress || 45, 75) });
+            store.updateDocument(document.id, result);
           } else {
-            const result = await mockApi.saveDocument({ ...validation.data, progress: 55 });
+            const result = await documentWorkflowApi.saveDocument({ ...validation.data, progress: 55 });
             store.addDocument(result);
           }
           store.setState({ draft: null });
@@ -729,7 +731,40 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
           toast(document ? 'Dokumen berhasil diperbarui.' : 'Dokumen baru berhasil dibuat.', 'success');
           window.dispatchEvent(new CustomEvent('retralabs:documents-changed'));
         } catch (error) {
-          toast(error.message || 'Dokumen gagal disimpan.', 'error');
+          if (error.code === 'DOCUMENT_REVISION_CONFLICT') {
+            openModal({
+              title: 'Konflik Revisi',
+              description: 'Dokumen sudah berubah di server.',
+              size: 'max-w-md',
+              content: `
+                <div class="space-y-3">
+                  <p class="text-sm text-slate-500 dark:text-slate-400">Pilih muat ulang data server atau simpan salinan lokal agar perubahan tidak hilang.</p>
+                  <button type="button" data-conflict-reload class="btn-primary w-full justify-center"><i data-lucide="RefreshCw" class="size-4"></i>Muat Ulang Data Server</button>
+                  <button type="button" data-conflict-copy class="btn-secondary w-full justify-center"><i data-lucide="CopyPlus" class="size-4"></i>Simpan Salinan Lokal</button>
+                </div>
+              `,
+              onOpen(conflictRoot) {
+                conflictRoot.querySelector('[data-conflict-reload]').addEventListener('click', () => {
+                  closeModal();
+                  window.dispatchEvent(new CustomEvent('retralabs:documents-changed'));
+                });
+                conflictRoot.querySelector('[data-conflict-copy]').addEventListener('click', () => {
+                  store.addDocument({
+                    ...validation.data,
+                    id: `LOCAL-${Date.now()}`,
+                    code: `${validation.data.code}-LOCAL`,
+                    status: 'draft',
+                    syncStatus: 'pending',
+                    updatedAt: new Date().toISOString(),
+                  });
+                  closeModal();
+                  window.dispatchEvent(new CustomEvent('retralabs:documents-changed'));
+                });
+              },
+            });
+            return;
+          }
+          toast(friendlyApiMessage(error), 'error');
         } finally {
           hideLoading();
         }

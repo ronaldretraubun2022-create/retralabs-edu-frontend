@@ -85,8 +85,8 @@ assert.equal(validateSchoolClassPhase({ school: sdSchool, className: 'VII A', ph
 assert.equal(validateSchoolClassPhase({ school: sdSchool, className: 'I A', phase: 'B' }), 'Fase B tidak sesuai. SD I A harus fase A.');
 
 const migratedState = store.getState();
-assert.equal(migratedState.appVersion, '1.7.0');
-assert.equal(migratedState.schemaVersion, '1.7.0');
+assert.equal(migratedState.appVersion, '1.8.0');
+assert.equal(migratedState.schemaVersion, '1.8.0');
 assert.equal(migratedState.schools.length, 4);
 assert.equal(migratedState.school.educationLevel, 'SMK');
 

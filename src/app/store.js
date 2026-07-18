@@ -6,13 +6,59 @@ import { defaultCalendarEvents, normalizeCalendarEvents } from '../utils/academi
 import { defaultUiPreferences, normalizeUiPreferences } from '../utils/productionUi.js';
 
 const STORAGE_KEY = 'retralabs-edu-state-v1';
+const MIGRATION_VERSION = '1.8.0';
+const MIGRATION_MARKER_KEY = 'retralabs-edu-migration-1.8.0';
+const MIGRATION_BACKUP_KEY = 'retralabs-edu-state-backup-before-1.8.0';
+const MIGRATION_REPORT_KEY = 'retralabs-edu-migration-report-1.8.0';
+const TRANSIENT_KEYS = new Set([
+  'auth',
+  'user',
+  'role',
+  'activeSchool',
+  'permissions',
+  'featureFlags',
+  'subscription',
+  'quota',
+  'notifications',
+  'api',
+  'loading',
+  'backendVersion',
+]);
 
 const initialState = {
   appVersion: APP_VERSION,
   schemaVersion: STORAGE_SCHEMA_VERSION,
   theme: 'dark',
   sidebarOpen: false,
-  isAuthenticated: true,
+  isAuthenticated: false,
+  loading: {
+    bootstrap: false,
+    route: false,
+  },
+  auth: {
+    status: 'unknown',
+    sessionExpired: false,
+    lastError: null,
+  },
+  user: null,
+  role: null,
+  activeSchool: null,
+  permissions: [],
+  featureFlags: {},
+  subscription: null,
+  quota: null,
+  notifications: {
+    unreadCount: 0,
+  },
+  api: {
+    online: false,
+    reachable: false,
+    checking: false,
+    fallbackMode: false,
+    lastError: null,
+    requestId: null,
+  },
+  backendVersion: null,
   documents: demoDocuments,
   schools: schoolSeeds,
   activeSchoolId: DEFAULT_SCHOOL_ID,
@@ -161,11 +207,38 @@ const migrateState = (saved = {}) => {
   };
 };
 
+const stripTransientState = (value) => {
+  const clean = { ...value };
+  TRANSIENT_KEYS.forEach((key) => delete clean[key]);
+  clean.isAuthenticated = false;
+  return clean;
+};
+
 const readState = () => {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const saved = JSON.parse(raw || '{}');
+    if (raw && saved.schemaVersion !== STORAGE_SCHEMA_VERSION && !localStorage.getItem(MIGRATION_BACKUP_KEY)) {
+      localStorage.setItem(MIGRATION_BACKUP_KEY, raw);
+    }
     const migrated = migrateState(saved);
-    if (migrated.changed) localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated.state));
+    if (migrated.changed) {
+      const report = {
+        version: MIGRATION_VERSION,
+        migratedAt: new Date().toISOString(),
+        previousVersion: saved.schemaVersion || saved.appVersion || null,
+        counts: {
+          documents: migrated.state.documents.length,
+          schools: migrated.state.schools.length,
+          localDraft: migrated.state.draft ? 1 : 0,
+        },
+        succeeded: migrated.state.documents.map((document) => ({ id: document.id, code: document.code || null })),
+        failed: [],
+      };
+      localStorage.setItem(MIGRATION_REPORT_KEY, JSON.stringify(report));
+      localStorage.setItem(MIGRATION_MARKER_KEY, JSON.stringify({ version: MIGRATION_VERSION, migratedAt: report.migratedAt }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stripTransientState(migrated.state)));
+    }
     return migrated.state;
   } catch {
     return migrateState({}).state;
@@ -176,8 +249,41 @@ let state = readState();
 const listeners = new Set();
 
 const persist = () => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(stripTransientState(state)));
 };
+
+const normalizeBootstrapSchool = (item = {}) => item.school || item;
+
+const normalizeBootstrap = (payload = {}) => {
+  const data = payload.data || payload;
+  const activeSchool = data.activeSchool || data.school || null;
+  const schools = Array.isArray(data.schools) ? data.schools.map(normalizeBootstrapSchool).filter(Boolean) : [];
+  return {
+    user: data.user || null,
+    activeSchool,
+    schools,
+    role: data.role || data.membership?.role || null,
+    permissions: Array.isArray(data.permissions) ? data.permissions : [],
+    featureFlags: data.featureFlags || data.features || {},
+    subscription: data.subscription || { plan: 'FREE', status: 'fallback' },
+    quota: data.quota || null,
+    notifications: {
+      unreadCount: Number(data.unreadNotificationCount ?? data.notifications?.unreadCount ?? 0),
+    },
+    backendVersion: data.backendVersion || data.version || null,
+  };
+};
+
+const normalizeSchoolForUi = (school = {}) => ({
+  ...initialState.school,
+  ...school,
+  id: school.id || school.schoolId || DEFAULT_SCHOOL_ID,
+  name: school.name || school.schoolName || initialState.school.name,
+  level: school.educationLevel || school.level || initialState.school.educationLevel,
+  educationLevel: school.educationLevel || school.level || initialState.school.educationLevel,
+  academicYear: school.academicYear || initialState.school.academicYear,
+  semester: school.semester || initialState.school.semester,
+});
 
 export const store = {
   getState() {
@@ -193,6 +299,175 @@ export const store = {
   subscribe(listener) {
     listeners.add(listener);
     return () => listeners.delete(listener);
+  },
+
+  getLocalMigrationPreview() {
+    const current = this.getState();
+    return {
+      version: MIGRATION_VERSION,
+      hasBackup: Boolean(localStorage.getItem(MIGRATION_BACKUP_KEY)),
+      marker: JSON.parse(localStorage.getItem(MIGRATION_MARKER_KEY) || 'null'),
+      counts: {
+        documents: current.documents.length,
+        schools: current.schools.length,
+        localDraft: current.draft ? 1 : 0,
+      },
+    };
+  },
+
+  getLocalMigrationReport() {
+    return JSON.parse(localStorage.getItem(MIGRATION_REPORT_KEY) || 'null');
+  },
+
+  backupLocalState() {
+    const raw = localStorage.getItem(STORAGE_KEY) || JSON.stringify(stripTransientState(state));
+    const backup = {
+      version: MIGRATION_VERSION,
+      createdAt: new Date().toISOString(),
+      storageKey: STORAGE_KEY,
+      state: JSON.parse(raw),
+    };
+    localStorage.setItem(MIGRATION_BACKUP_KEY, JSON.stringify(backup));
+    return backup;
+  },
+
+  applyBootstrap(payload, requestId = null) {
+    const boot = normalizeBootstrap(payload);
+    const normalizedSchools = boot.schools.length ? boot.schools.map(normalizeSchoolForUi) : state.schools;
+    const activeSchool = boot.activeSchool ? normalizeSchoolForUi(boot.activeSchool) : normalizedSchools[0] || state.school;
+    this.setState({
+      isAuthenticated: true,
+      auth: { status: 'authenticated', sessionExpired: false, lastError: null },
+      user: boot.user,
+      role: boot.role,
+      activeSchool,
+      schools: normalizedSchools,
+      school: activeSchool,
+      activeSchoolId: activeSchool.id,
+      activeAcademicYear: activeSchool.academicYear,
+      activeSemester: activeSchool.semester,
+      permissions: boot.permissions,
+      featureFlags: boot.featureFlags,
+      subscription: boot.subscription,
+      quota: boot.quota,
+      notifications: boot.notifications,
+      backendVersion: boot.backendVersion,
+      api: { online: true, reachable: true, checking: false, fallbackMode: false, lastError: null, requestId },
+    }, { persist: false });
+  },
+
+  setAuthError(error, fallbackMode = false) {
+    const connectivityError = ['NETWORK_ERROR', 'REQUEST_TIMEOUT'].includes(error?.code);
+    const reachable = Boolean(error?.status && !connectivityError);
+    this.setState({
+      isAuthenticated: fallbackMode,
+      auth: {
+        status: fallbackMode ? 'offline' : 'unauthenticated',
+        sessionExpired: ['SESSION_REVOKED', 'ACCESS_TOKEN_EXPIRED', 'AUTHENTICATION_REQUIRED'].includes(error?.code),
+        lastError: error
+          ? {
+              code: error.code,
+              message: error.message,
+              requestId: error.requestId,
+              status: error.status,
+              silentUnauthenticated: error.silentUnauthenticated === true,
+            }
+          : null,
+      },
+      api: {
+        online: false,
+        reachable,
+        checking: false,
+        fallbackMode,
+        lastError: error
+          ? {
+              code: error.code,
+              message: error.message,
+              requestId: error.requestId,
+              status: error.status,
+              silentUnauthenticated: error.silentUnauthenticated === true,
+            }
+          : null,
+        requestId: error?.requestId || null,
+      },
+    }, { persist: false });
+  },
+
+  setBackendConnection({ reachable, checking, error = undefined, requestId = undefined, backendVersion = null } = {}) {
+    this.setState((current) => {
+      const currentApi = { ...initialState.api, ...(current.api || {}) };
+      const nextApi = { ...currentApi };
+      const keepBootstrapOnline = current.auth?.status === 'authenticated' && currentApi.online === true;
+      if (typeof checking === 'boolean') nextApi.checking = checking;
+      if (typeof reachable === 'boolean') {
+        nextApi.reachable = keepBootstrapOnline && !reachable ? true : reachable;
+        if (!reachable && !keepBootstrapOnline) nextApi.online = false;
+        if (reachable) nextApi.fallbackMode = false;
+      }
+      if (error !== undefined) {
+        if (error && keepBootstrapOnline) {
+          nextApi.checking = false;
+        } else {
+          nextApi.lastError = error
+            ? {
+                code: error.code,
+                message: error.message,
+                requestId: error.requestId,
+                status: error.status,
+                silentUnauthenticated: error.silentUnauthenticated === true,
+              }
+            : null;
+          nextApi.requestId = error?.requestId || requestId || null;
+        }
+      } else if (requestId !== undefined) {
+        nextApi.requestId = requestId || null;
+      }
+      return {
+        backendVersion: backendVersion || current.backendVersion,
+        api: nextApi,
+      };
+    }, { persist: false });
+  },
+
+  markBackendOnline({ requestId = null, backendVersion = null } = {}) {
+    this.setState((current) => ({
+      backendVersion: backendVersion || current.backendVersion,
+      api: {
+        ...initialState.api,
+        ...(current.api || {}),
+        online: true,
+        reachable: true,
+        checking: false,
+        fallbackMode: false,
+        lastError: null,
+        requestId: requestId || current.api?.requestId || null,
+      },
+    }), { persist: false });
+  },
+
+  clearSession() {
+    this.setState({
+      isAuthenticated: false,
+      auth: { status: 'unauthenticated', sessionExpired: false, lastError: null },
+      user: null,
+      role: null,
+      activeSchool: null,
+      permissions: [],
+      featureFlags: {},
+      subscription: null,
+      quota: null,
+      notifications: { unreadCount: 0 },
+      api: { online: false, reachable: false, checking: false, fallbackMode: false, lastError: null, requestId: null },
+      draft: null,
+    }, { persist: false });
+  },
+
+  clearTenantCache() {
+    this.setState({
+      documents: [],
+      draft: null,
+      notifications: { unreadCount: 0 },
+    }, { persist: false });
   },
 
   reset() {
