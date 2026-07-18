@@ -117,6 +117,7 @@ import { renderMigration } from './pages/migration.js';
 import { toast } from './components/toast.js';
 import { friendlyApiMessage, loadBootstrap } from './app/bootstrap.js';
 import { canAccessRoute } from './app/guards.js';
+import { installGlobalErrorBoundary, renderAppError } from './components/errorBoundary.js';
 
 const toLucideDomKey = (name) =>
   name.replace(/(\w)(\w*)(_|-|\s*)/g, (_match, first, rest) => first.toUpperCase() + rest.toLowerCase());
@@ -237,18 +238,19 @@ const refreshIcons = () => {
 applyTheme();
 store.subscribe(applyTheme);
 window.addEventListener('retralabs:icons', () => requestAnimationFrame(refreshIcons));
-window.addEventListener('error', (event) => {
-  console.error('ui-error', event.message);
-  toast('Terjadi kesalahan pada antarmuka. Silakan muat ulang halaman.', 'error');
-});
-window.addEventListener('unhandledrejection', (event) => {
-  console.error('ui-promise-error');
-  toast('Proses tidak dapat diselesaikan.', 'error');
-});
+installGlobalErrorBoundary();
 
 const publicRoutes = new Set(['/login']);
 
 router
+  .setErrorHandler(({ error, retry }) => {
+    renderAppError({
+      title: 'Halaman tidak dapat dimuat',
+      error,
+      onRetry: retry,
+    });
+    toast(friendlyApiMessage(error), 'error');
+  })
   .setAuthGuard(async ({ path, navigate }) => {
     if (publicRoutes.has(path)) {
       if (store.getState().auth?.status === 'authenticated') {

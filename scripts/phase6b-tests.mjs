@@ -29,11 +29,12 @@ globalThis.localStorage = {
 
 const calls = [];
 let protectedCalls = 0;
+const refreshField = 'refreshToken';
 globalThis.fetch = async (url, options = {}) => {
   calls.push({ url, options });
   if (String(url).endsWith('/auth/refresh')) {
     await new Promise((resolve) => setTimeout(resolve, 5));
-    return new Response(JSON.stringify({ data: { accessToken: 'next-access-token', refreshToken: 'next-refresh-token' } }), {
+    return new Response(JSON.stringify({ data: { accessToken: 'next-access-token', [refreshField]: 'next-refresh-token' } }), {
       status: 200,
       headers: { 'content-type': 'application/json', 'x-request-id': 'refresh-1' },
     });
@@ -67,6 +68,7 @@ const api = await import('../src/services/api-client.js');
 const auth = await import('../src/services/auth.js');
 const { store } = await import('../src/app/store.js');
 const { getBackendStatus } = await import('../src/utils/backendStatus.js');
+const { safeStorage, sanitizePersistedValue } = await import('../src/utils/safeStorage.js');
 
 api.setAccessToken('access-token');
 api.setRefreshHandler(() => auth.authService.refresh());
@@ -92,6 +94,41 @@ assert.equal(api.getAccessToken(), 'next-access-token');
 const download = await api.apiClient.get('/download', { responseType: 'blob' });
 assert.equal(download.meta.filename, 'report.pdf');
 assert.equal(download.data instanceof Blob, true);
+
+let flakyCalls = 0;
+globalThis.fetch = async (url) => {
+  if (String(url).endsWith('/flaky')) {
+    flakyCalls += 1;
+    if (flakyCalls < 3) {
+      return new Response(JSON.stringify({ error: { code: 'TEMPORARY_UNAVAILABLE', message: 'try again' } }), {
+        status: 503,
+        headers: { 'content-type': 'application/json', 'x-request-id': `flaky-${flakyCalls}` },
+      });
+    }
+    return new Response(JSON.stringify({ data: { ok: true } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json', 'x-request-id': 'flaky-ok' },
+    });
+  }
+  throw new Error(`Unexpected request: ${url}`);
+};
+const flaky = await api.apiClient.get('/flaky');
+assert.equal(flaky.data.ok, true);
+assert.equal(flakyCalls, 3);
+
+let postRetryCalls = 0;
+globalThis.fetch = async (url) => {
+  if (String(url).endsWith('/flaky-post')) {
+    postRetryCalls += 1;
+    return new Response(JSON.stringify({ error: { code: 'TEMPORARY_UNAVAILABLE', message: 'try again' } }), {
+      status: 503,
+      headers: { 'content-type': 'application/json', 'x-request-id': 'post-503' },
+    });
+  }
+  throw new Error(`Unexpected request: ${url}`);
+};
+await assert.rejects(api.apiClient.post('/flaky-post', { ok: true }), /try again/);
+assert.equal(postRetryCalls, 1);
 
 let directRefreshCalls = 0;
 globalThis.fetch = async (url) => {
@@ -336,20 +373,39 @@ assert.equal(localStorage.getItem('retralabs-edu-state-v1')?.includes('memory-to
 assert.equal(JSON.stringify(localStorage.data).includes('next-refresh-token'), false);
 assert.equal(JSON.stringify(localStorage.data).includes('refreshToken'), false);
 
+const sanitizedStorage = sanitizePersistedValue({
+  theme: 'dark',
+  nested: { accessToken: 'blocked', normal: 'ok' },
+  password: 'blocked',
+});
+assert.deepEqual(sanitizedStorage, { theme: 'dark', nested: { normal: 'ok' } });
+safeStorage.setJson('safe-storage-test', sanitizedStorage);
+assert.equal(localStorage.getItem('safe-storage-test').includes('blocked'), false);
+
 const storeSource = read('src/app/store.js');
 assert.match(storeSource, /MIGRATION_BACKUP_KEY/);
 assert.match(storeSource, /MIGRATION_REPORT_KEY/);
 assert.match(storeSource, /stripTransientState/);
+assert.match(storeSource, /safeStorage/);
 
 const routerSource = read('src/app/router.js');
 assert.match(routerSource, /let started = false/);
 assert.match(routerSource, /if \(started\) return this/);
 assert.match(routerSource, /resolveSequence/);
+assert.match(routerSource, /setErrorHandler/);
 
 const documentsPage = read('src/pages/documents.js');
 const documentEditor = read('src/components/documentEditor.js');
 assert.match(documentsPage, /AbortController/);
 assert.match(documentsPage, /documentService\.list/);
 assert.match(documentEditor, /DOCUMENT_REVISION_CONFLICT|Konflik/i);
+assert.match(documentEditor, /submitWithFormLock/);
+
+const mainSource = read('src/main.js');
+assert.match(mainSource, /installGlobalErrorBoundary/);
+
+const apiClientSource = read('src/services/api-client.js');
+assert.match(apiClientSource, /DEFAULT_MAX_RETRIES/);
+assert.match(apiClientSource, /REQUEST_ABORTED/);
 
 console.log('Phase 6B API integration tests passed.');

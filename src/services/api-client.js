@@ -25,6 +25,10 @@ let onUnauthorized = null;
 let onBackendSuccess = null;
 let refreshPromise = null;
 
+const DEFAULT_MAX_RETRIES = 2;
+const RETRYABLE_STATUS_CODES = new Set([408, 425, 429, 500, 502, 503, 504]);
+const RETRYABLE_ERROR_CODES = new Set(['NETWORK_ERROR', 'REQUEST_TIMEOUT', 'OFFLINE']);
+
 export const setAccessToken = (token) => {
   accessToken = token || null;
 };
@@ -51,6 +55,8 @@ export const getRequestId = () =>
   globalThis.crypto?.randomUUID?.() || `req-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 const isJsonResponse = (response) => response.headers.get('content-type')?.includes('application/json');
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const sanitizeFilename = (filename = 'download') =>
   String(filename)
@@ -102,6 +108,15 @@ const shouldRefresh = (error) =>
 
 const isRefreshRequest = (path) => String(path).replace(/\/+$/, '') === '/auth/refresh';
 
+const canRetryRequest = ({ method, idempotencyKey }) =>
+  ['GET', 'HEAD', 'OPTIONS'].includes(String(method).toUpperCase()) || Boolean(idempotencyKey);
+
+const shouldRetry = (error, request) =>
+  canRetryRequest(request) &&
+  (RETRYABLE_ERROR_CODES.has(error?.code) || RETRYABLE_STATUS_CODES.has(Number(error?.status || 0)));
+
+const retryDelay = (attempt) => Math.min(1600, 350 * (2 ** attempt)) + Math.floor(Math.random() * 120);
+
 const refreshOnce = async () => {
   if (!refreshHandler) throw new ApiError({ code: 'REFRESH_UNAVAILABLE', status: 401 });
   if (!refreshPromise) {
@@ -126,87 +141,113 @@ export const apiClient = {
       retryOnAuth = true,
       idempotencyKey,
       responseType = 'json',
+      maxRetries = DEFAULT_MAX_RETRIES,
     } = options;
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     const requestId = headers['X-Request-Id'] || getRequestId();
-    if (signal) {
-      if (signal.aborted) controller.abort();
-      signal.addEventListener('abort', () => controller.abort(), { once: true });
-    }
 
-    const requestHeaders = {
-      Accept: 'application/json',
-      'X-Request-Id': requestId,
-      ...headers,
-    };
-    if (accessToken) requestHeaders.Authorization = `Bearer ${accessToken}`;
-    if (idempotencyKey) requestHeaders['Idempotency-Key'] = idempotencyKey;
+    const execute = async (attempt = 0) => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        throw new ApiError({ code: 'OFFLINE', message: 'Koneksi internet offline.', requestId, status: 0 });
+      }
 
-    let requestBody = body;
-    if (body && !(body instanceof FormData) && !(body instanceof Blob)) {
-      requestHeaders['Content-Type'] = 'application/json';
-      requestBody = JSON.stringify(body);
-    }
+      const controller = new AbortController();
+      let externalAbort = false;
+      const abortFromSignal = () => {
+        externalAbort = true;
+        controller.abort();
+      };
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      if (signal) {
+        if (signal.aborted) abortFromSignal();
+        else signal.addEventListener('abort', abortFromSignal, { once: true });
+      }
 
-    try {
-      const response = await fetch(buildApiUrl(path, query), {
-        method,
-        headers: requestHeaders,
-        body: requestBody,
-        credentials: 'include',
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
+      const requestHeaders = {
+        Accept: 'application/json',
+        'X-Request-Id': requestId,
+        ...headers,
+      };
+      if (accessToken) requestHeaders.Authorization = `Bearer ${accessToken}`;
+      if (idempotencyKey) requestHeaders['Idempotency-Key'] = idempotencyKey;
 
-      if (!response.ok) {
-        const error = await normalizeError(response, requestId);
-        if (retryOnAuth && !isRefreshRequest(path) && shouldRefresh(error)) {
-          try {
-            await refreshOnce();
-            return this.request(path, { ...options, retryOnAuth: false });
-          } catch (refreshError) {
-            clearAccessToken();
-            if (refreshError instanceof ApiError && refreshError.status === 401) {
-              refreshError.silentUnauthenticated = true;
+      let requestBody = body;
+      if (body && !(body instanceof FormData) && !(body instanceof Blob)) {
+        requestHeaders['Content-Type'] = 'application/json';
+        requestBody = JSON.stringify(body);
+      }
+
+      try {
+        const response = await fetch(buildApiUrl(path, query), {
+          method,
+          headers: requestHeaders,
+          body: requestBody,
+          credentials: 'include',
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          const error = await normalizeError(response, requestId);
+          if (retryOnAuth && !isRefreshRequest(path) && shouldRefresh(error)) {
+            try {
+              await refreshOnce();
+              return this.request(path, { ...options, retryOnAuth: false });
+            } catch (refreshError) {
+              clearAccessToken();
+              if (refreshError instanceof ApiError && refreshError.status === 401) {
+                refreshError.silentUnauthenticated = true;
+              }
+              onUnauthorized?.(refreshError);
+              throw refreshError;
             }
-            onUnauthorized?.(refreshError);
-            throw refreshError;
           }
+          throw error;
         }
-        throw error;
-      }
 
-      const responseRequestId = response.headers.get('x-request-id') || requestId;
-      onBackendSuccess?.({
-        method,
-        path,
-        requestId: responseRequestId,
-        status: response.status,
-      });
-      if (responseType === 'blob' || !isJsonResponse(response)) {
-        const blob = await response.blob();
-        return {
-          data: blob,
-          meta: {
-            filename: filenameFromDisposition(response.headers.get('content-disposition')),
-            contentType: response.headers.get('content-type') || blob.type,
-          },
+        const responseRequestId = response.headers.get('x-request-id') || requestId;
+        onBackendSuccess?.({
+          method,
+          path,
           requestId: responseRequestId,
-        };
-      }
+          status: response.status,
+        });
+        if (responseType === 'blob' || !isJsonResponse(response)) {
+          const blob = await response.blob();
+          return {
+            data: blob,
+            meta: {
+              filename: filenameFromDisposition(response.headers.get('content-disposition')),
+              contentType: response.headers.get('content-type') || blob.type,
+            },
+            requestId: responseRequestId,
+          };
+        }
 
-      if (response.status === 204) return { data: null, meta: null, requestId: responseRequestId };
-      return normalizeSuccess(await response.json(), responseRequestId);
-    } catch (error) {
-      clearTimeout(timeout);
-      if (error instanceof ApiError) throw error;
-      if (error?.name === 'AbortError') {
-        throw new ApiError({ code: 'REQUEST_TIMEOUT', message: 'Request melebihi batas waktu.', requestId, status: 0 });
+        if (response.status === 204) return { data: null, meta: null, requestId: responseRequestId };
+        return normalizeSuccess(await response.json(), responseRequestId);
+      } catch (error) {
+        clearTimeout(timeout);
+        if (signal) signal.removeEventListener('abort', abortFromSignal);
+        const apiError = error instanceof ApiError
+          ? error
+          : error?.name === 'AbortError' && externalAbort
+            ? new ApiError({ code: 'REQUEST_ABORTED', message: 'Request dibatalkan.', requestId, status: 0 })
+            : error?.name === 'AbortError'
+              ? new ApiError({ code: 'REQUEST_TIMEOUT', message: 'Request melebihi batas waktu.', requestId, status: 0 })
+              : new ApiError({ code: 'NETWORK_ERROR', message: 'Backend tidak dapat dijangkau.', details: error?.message, requestId, status: 0 });
+        if (attempt < maxRetries && shouldRetry(apiError, { method, idempotencyKey })) {
+          await wait(retryDelay(attempt));
+          return execute(attempt + 1);
+        }
+        throw apiError;
+      } finally {
+        clearTimeout(timeout);
+        if (signal) signal.removeEventListener('abort', abortFromSignal);
       }
-      throw new ApiError({ code: 'NETWORK_ERROR', message: 'Backend tidak dapat dijangkau.', details: error?.message, requestId, status: 0 });
-    }
+    };
+
+    return execute();
   },
 
   get(path, options = {}) {

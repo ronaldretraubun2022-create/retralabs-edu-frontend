@@ -8,6 +8,12 @@ const parsePositiveInteger = (value, fallback) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const sanitizeQueryValue = (value) =>
+  String(value)
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .trim()
+    .slice(0, 500);
+
 const viteEnv = import.meta.env || {};
 
 export const apiConfig = Object.freeze({
@@ -26,7 +32,7 @@ export const buildApiUrl = (path, query = {}) => {
       url.searchParams.set(key, String(Math.min(Number(value) || 20, 100)));
       return;
     }
-    url.searchParams.set(key, String(value));
+    url.searchParams.set(key, sanitizeQueryValue(value));
   });
   return url.toString();
 };

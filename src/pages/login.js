@@ -4,7 +4,8 @@ import { hideLoading, showLoading } from '../components/loading.js';
 import { toast } from '../components/toast.js';
 import { authService } from '../services/auth.js';
 import { backendStatusLoginCard } from '../utils/backendStatus.js';
-import { renderErrors, required, validateForm } from '../utils/validators.js';
+import { submitWithFormLock } from '../utils/asyncAction.js';
+import { email, maxLength, renderErrors, required, validateForm } from '../utils/validators.js';
 
 export const renderLogin = ({ navigate }) => {
   document.querySelector('#app').innerHTML = `
@@ -48,7 +49,7 @@ export const renderLogin = ({ navigate }) => {
   `;
 
   window.dispatchEvent(new CustomEvent('retralabs:icons'));
-  checkBackendConnection().then(() => {
+  checkBackendConnection().catch(() => false).then(() => {
     const statusCard = document.querySelector('[data-backend-status-card]');
     if (!statusCard) return;
     statusCard.innerHTML = backendStatusLoginCard(store.getState());
@@ -63,26 +64,28 @@ export const renderLogin = ({ navigate }) => {
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const validation = validateForm(form, {
-      email: (value) => required(value, 'Email'),
-      password: (value) => required(value, 'Kata sandi'),
+      email: [(value) => required(value, 'Email'), email, (value) => maxLength(value, 120, 'Email')],
+      password: [(value) => required(value, 'Kata sandi'), (value) => maxLength(value, 200, 'Kata sandi')],
     });
     renderErrors(form, validation.errors);
     if (!validation.isValid) return;
-    showLoading('Memverifikasi akun');
-    try {
-      await authService.login(validation.data);
-      const state = await loadBootstrap({ force: true });
-      if (state.auth?.status !== 'authenticated' || state.api?.online !== true) {
-        throw state.auth?.lastError || new Error('Bootstrap backend gagal.');
+    await submitWithFormLock(form, async () => {
+      showLoading('Memverifikasi akun');
+      try {
+        await authService.login(validation.data);
+        const state = await loadBootstrap({ force: true });
+        if (state.auth?.status !== 'authenticated' || state.api?.online !== true) {
+          throw state.auth?.lastError || new Error('Bootstrap backend gagal.');
+        }
+        store.setState({ auth: { ...store.getState().auth, sessionExpired: false } }, { persist: false });
+        toast('Login berhasil.', 'success');
+        navigate('/dashboard');
+      } catch (error) {
+        store.setAuthError(error, false);
+        toast(friendlyApiMessage(error), 'error');
+      } finally {
+        hideLoading();
       }
-      store.setState({ auth: { ...store.getState().auth, sessionExpired: false } }, { persist: false });
-      toast('Login berhasil.', 'success');
-      navigate('/dashboard');
-    } catch (error) {
-      store.setAuthError(error, false);
-      toast(friendlyApiMessage(error), 'error');
-    } finally {
-      hideLoading();
-    }
+    });
   });
 };

@@ -4,6 +4,7 @@ import { DEFAULT_SCHOOL_ID, getActiveSchool, phase2DocumentSeeds, phase3Document
 import { defaultPrintSettings, normalizePrintSettings } from '../utils/printConfig.js';
 import { defaultCalendarEvents, normalizeCalendarEvents } from '../utils/academicCalendar.js';
 import { defaultUiPreferences, normalizeUiPreferences } from '../utils/productionUi.js';
+import { safeStorage } from '../utils/safeStorage.js';
 
 const STORAGE_KEY = 'retralabs-edu-state-v1';
 const MIGRATION_VERSION = '1.8.0';
@@ -216,10 +217,10 @@ const stripTransientState = (value) => {
 
 const readState = () => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const saved = JSON.parse(raw || '{}');
-    if (raw && saved.schemaVersion !== STORAGE_SCHEMA_VERSION && !localStorage.getItem(MIGRATION_BACKUP_KEY)) {
-      localStorage.setItem(MIGRATION_BACKUP_KEY, raw);
+    const raw = safeStorage.getRaw(STORAGE_KEY);
+    const saved = safeStorage.getJson(STORAGE_KEY, {});
+    if (raw && saved.schemaVersion !== STORAGE_SCHEMA_VERSION && !safeStorage.has(MIGRATION_BACKUP_KEY)) {
+      safeStorage.setRaw(MIGRATION_BACKUP_KEY, raw);
     }
     const migrated = migrateState(saved);
     if (migrated.changed) {
@@ -235,9 +236,9 @@ const readState = () => {
         succeeded: migrated.state.documents.map((document) => ({ id: document.id, code: document.code || null })),
         failed: [],
       };
-      localStorage.setItem(MIGRATION_REPORT_KEY, JSON.stringify(report));
-      localStorage.setItem(MIGRATION_MARKER_KEY, JSON.stringify({ version: MIGRATION_VERSION, migratedAt: report.migratedAt }));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stripTransientState(migrated.state)));
+      safeStorage.setJson(MIGRATION_REPORT_KEY, report);
+      safeStorage.setJson(MIGRATION_MARKER_KEY, { version: MIGRATION_VERSION, migratedAt: report.migratedAt });
+      safeStorage.setJson(STORAGE_KEY, stripTransientState(migrated.state));
     }
     return migrated.state;
   } catch {
@@ -249,7 +250,7 @@ let state = readState();
 const listeners = new Set();
 
 const persist = () => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(stripTransientState(state)));
+  safeStorage.setJson(STORAGE_KEY, stripTransientState(state));
 };
 
 const normalizeBootstrapSchool = (item = {}) => item.school || item;
@@ -305,8 +306,8 @@ export const store = {
     const current = this.getState();
     return {
       version: MIGRATION_VERSION,
-      hasBackup: Boolean(localStorage.getItem(MIGRATION_BACKUP_KEY)),
-      marker: JSON.parse(localStorage.getItem(MIGRATION_MARKER_KEY) || 'null'),
+      hasBackup: safeStorage.has(MIGRATION_BACKUP_KEY),
+      marker: safeStorage.getJson(MIGRATION_MARKER_KEY, null),
       counts: {
         documents: current.documents.length,
         schools: current.schools.length,
@@ -316,18 +317,18 @@ export const store = {
   },
 
   getLocalMigrationReport() {
-    return JSON.parse(localStorage.getItem(MIGRATION_REPORT_KEY) || 'null');
+    return safeStorage.getJson(MIGRATION_REPORT_KEY, null);
   },
 
   backupLocalState() {
-    const raw = localStorage.getItem(STORAGE_KEY) || JSON.stringify(stripTransientState(state));
+    const storedState = safeStorage.getJson(STORAGE_KEY, null);
     const backup = {
       version: MIGRATION_VERSION,
       createdAt: new Date().toISOString(),
       storageKey: STORAGE_KEY,
-      state: JSON.parse(raw),
+      state: storedState || stripTransientState(state),
     };
-    localStorage.setItem(MIGRATION_BACKUP_KEY, JSON.stringify(backup));
+    safeStorage.setJson(MIGRATION_BACKUP_KEY, backup);
     return backup;
   },
 

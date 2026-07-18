@@ -4,6 +4,7 @@ import { unwrapList } from '../app/backend-mappers.js';
 import { renderLayout } from '../components/layout.js';
 import { toast } from '../components/toast.js';
 import { authService } from '../services/auth.js';
+import { bindAsyncClick, runWithButtonLock } from '../utils/asyncAction.js';
 import { escapeHtml, formatDateTime } from '../utils/format.js';
 import { emptyState } from '../utils/productionUi.js';
 
@@ -38,9 +39,11 @@ export const renderSessions = () => {
         </article>
       `).join('') : emptyState({ title: 'Tidak ada sesi aktif', description: 'Backend tidak mengirim sesi aktif.' });
       target.querySelectorAll('[data-revoke-session]').forEach((button) => button.addEventListener('click', async () => {
-        await authService.revokeSession(button.dataset.revokeSession);
-        toast('Sesi dicabut.', 'success');
-        load();
+        await runWithButtonLock(button, async () => {
+          await authService.revokeSession(button.dataset.revokeSession);
+          toast('Sesi dicabut.', 'success');
+          load();
+        });
       }));
     } catch (error) {
       target.innerHTML = emptyState({ title: friendlyApiMessage(error), description: error.requestId ? `Request ID: ${error.requestId}` : 'Coba refresh halaman.' });
@@ -48,7 +51,7 @@ export const renderSessions = () => {
     window.dispatchEvent(new CustomEvent('retralabs:icons'));
   };
 
-  document.querySelector('[data-logout-all]').addEventListener('click', async () => {
+  bindAsyncClick(document.querySelector('[data-logout-all]'), async () => {
     await authService.logoutAll().catch(() => null);
     store.clearSession();
     toast('Logout semua perangkat diproses.', 'success');

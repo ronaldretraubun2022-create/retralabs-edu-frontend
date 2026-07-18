@@ -4,6 +4,7 @@ import { canAccessRoute, routeAccessReason } from '../app/guards.js';
 import { authService } from '../services/auth.js';
 import { getActiveSchool } from '../utils/education.js';
 import { getBackendStatus } from '../utils/backendStatus.js';
+import { bindAsyncClick } from '../utils/asyncAction.js';
 import { escapeHtml } from '../utils/format.js';
 
 const menuGroups = [
@@ -135,7 +136,7 @@ export const bindSidebar = () => {
 
   document.querySelector('[data-sidebar-open]')?.addEventListener('click', open);
   document.querySelector('[data-sidebar-close]')?.addEventListener('click', close);
-  document.querySelector('[data-sidebar-logout]')?.addEventListener('click', async () => {
+  bindAsyncClick(document.querySelector('[data-sidebar-logout]'), async () => {
     await authService.logout().catch(() => null);
     store.clearSession();
     window.location.hash = '/login';
