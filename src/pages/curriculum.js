@@ -110,7 +110,7 @@ export const renderCurriculum = () => {
               </div>
               <div class="p-4">
                 <p class="text-sm font-black text-slate-900 dark:text-white">${item.classes}</p>
-                <button type="button" class="mt-3 inline-flex items-center gap-1 text-xs font-bold text-brand-600 dark:text-brand-400">Lihat detail <i data-lucide="ArrowRight" class="size-3.5"></i></button>
+                <button type="button" data-curriculum-detail="${escapeHtml(item.phase)}" class="mt-3 inline-flex items-center gap-1 text-xs font-bold text-brand-600 dark:text-brand-400">Lihat detail <i data-lucide="ArrowRight" class="size-3.5"></i></button>
               </div>
             </article>
           `).join('')}
@@ -280,5 +280,8 @@ export const renderCurriculum = () => {
   });
   document.querySelectorAll('[data-flow-code]').forEach((button) => button.addEventListener('click', () => {
     window.location.hash = `/teaching-tools?type=${button.dataset.flowCode}`;
+  }));
+  document.querySelectorAll('[data-curriculum-detail]').forEach((button) => button.addEventListener('click', () => {
+    window.location.hash = `/teaching-tools?type=${button.dataset.curriculumDetail}`;
   }));
 };

@@ -1,5 +1,6 @@
 import { store } from '../app/store.js';
 import { escapeHtml } from '../utils/format.js';
+import { renderStatusPage } from '../pages/status.js';
 import { toast } from './toast.js';
 
 let lastToastAt = 0;
@@ -15,6 +16,10 @@ const shouldThrottleToast = () => {
 };
 
 export const renderAppError = ({ title = 'Halaman tidak dapat dimuat', error, retryLabel = 'Coba Lagi', onRetry } = {}) => {
+  if (error?.fatal === true) {
+    renderStatusPage({ type: 'fatal', error, retry: onRetry });
+    return;
+  }
   const app = document.querySelector('#app');
   if (!app) return;
   const state = store.getState();

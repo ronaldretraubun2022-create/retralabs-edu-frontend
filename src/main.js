@@ -114,10 +114,12 @@ import { renderUsage } from './pages/usage.js';
 import { renderAudit } from './pages/audit.js';
 import { renderSessions } from './pages/sessions.js';
 import { renderMigration } from './pages/migration.js';
+import { renderFatal, renderMaintenance, renderOffline } from './pages/status.js';
 import { toast } from './components/toast.js';
 import { friendlyApiMessage, loadBootstrap } from './app/bootstrap.js';
 import { canAccessRoute } from './app/guards.js';
 import { installGlobalErrorBoundary, renderAppError } from './components/errorBoundary.js';
+import { appConfig } from './config/api.js';
 
 const toLucideDomKey = (name) =>
   name.replace(/(\w)(\w*)(_|-|\s*)/g, (_match, first, rest) => first.toUpperCase() + rest.toLowerCase());
@@ -240,7 +242,7 @@ store.subscribe(applyTheme);
 window.addEventListener('retralabs:icons', () => requestAnimationFrame(refreshIcons));
 installGlobalErrorBoundary();
 
-const publicRoutes = new Set(['/login']);
+const publicRoutes = new Set(['/login', '/offline', '/maintenance', '/fatal']);
 
 router
   .setErrorHandler(({ error, retry }) => {
@@ -252,8 +254,13 @@ router
     toast(friendlyApiMessage(error), 'error');
   })
   .setAuthGuard(async ({ path, navigate }) => {
+    if (appConfig.maintenanceMode && path !== '/maintenance') {
+      navigate('/maintenance');
+      return false;
+    }
+
     if (publicRoutes.has(path)) {
-      if (store.getState().auth?.status === 'authenticated') {
+      if (path === '/login' && store.getState().auth?.status === 'authenticated') {
         navigate('/dashboard');
         return false;
       }
@@ -298,5 +305,8 @@ router
   .register('/settings/sessions', renderSessions)
   .register('/settings/migration', renderMigration)
   .register('/help', renderHelp)
+  .register('/offline', renderOffline)
+  .register('/maintenance', renderMaintenance)
+  .register('/fatal', renderFatal)
   .register('/404', renderNotFound)
   .start();

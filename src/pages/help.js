@@ -11,7 +11,7 @@ export const renderHelp = () => {
         <article class="overflow-hidden rounded-3xl bg-gradient-to-br from-brand-700 to-slate-950 p-8 text-white shadow-2xl sm:p-10">
           <span class="badge bg-white/10 text-brand-100"><i data-lucide="LifeBuoy" class="size-3.5"></i>Pusat Bantuan</span>
           <h2 class="mt-4 text-3xl font-black">Apa yang ingin Anda pelajari?</h2>
-          <p class="mt-2 max-w-2xl text-brand-100">Frontend ini menggunakan data demo dan localStorage. Integrasi API dapat dipasang pada file <code class="rounded bg-black/20 px-1.5 py-0.5">src/app/api.js</code>.</p>
+          <p class="mt-2 max-w-2xl text-brand-100">Frontend memakai Backend API saat online dan fallback lokal aman saat jaringan tidak tersedia.</p>
           <label class="relative mt-6 block max-w-2xl">
             <i data-lucide="Search" class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400"></i>
             <input type="search" class="w-full rounded-2xl border-0 bg-white px-5 py-4 pl-12 text-slate-900 outline-none ring-4 ring-white/10 placeholder:text-slate-400" placeholder="Cari panduan..." />
@@ -23,8 +23,8 @@ export const renderHelp = () => {
             ['Memulai Aplikasi', 'Jalankan npm install lalu npm run dev.', 'Rocket'],
             ['Membuat Perangkat Ajar', 'Buka menu Perangkat Ajar dan pilih CP, ATP, RPP, atau modul lainnya.', 'BookOpenCheck'],
             ['Export Dokumen', 'Dokumen dapat diekspor sebagai Word, JSON, atau dicetak menjadi PDF.', 'FileDown'],
-            ['Menghubungkan Backend', 'Ganti mockApi dengan endpoint REST API atau layanan backend Anda.', 'Cable'],
-            ['Penyimpanan Lokal', 'Dokumen demo, tema, profil sekolah, dan draf tersimpan pada localStorage.', 'Database'],
+            ['Menghubungkan Backend', 'Atur VITE_API_BASE_URL dan pastikan backend mengizinkan credentials dari domain frontend.', 'Cable'],
+            ['Penyimpanan Lokal', 'Draft dan preferensi tersimpan aman tanpa token atau secret.', 'Database'],
             ['Responsive dan PWA', 'Layout sudah mobile-first dan dapat dikembangkan menjadi PWA.', 'Smartphone'],
           ].map(([title, description, icon]) => `
             <article class="panel flex gap-4">

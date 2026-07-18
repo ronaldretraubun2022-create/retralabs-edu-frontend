@@ -1,5 +1,6 @@
 const MAX_STORAGE_BYTES = 1_500_000;
 const SENSITIVE_KEY_PATTERN = /(access|auth|bearer|credential|password|secret|token)/i;
+let lastStorageError = null;
 
 const safeJsonParse = (value, fallback = null) => {
   if (!value) return fallback;
@@ -28,11 +29,15 @@ export const storageAvailable = () => {
     const key = '__retralabs_storage_check__';
     localStorage.setItem(key, '1');
     localStorage.removeItem?.(key);
+    lastStorageError = null;
     return true;
-  } catch {
+  } catch (error) {
+    lastStorageError = { code: 'STORAGE_UNAVAILABLE', message: error?.message || 'localStorage tidak tersedia.' };
     return false;
   }
 };
+
+export const getLastStorageError = () => lastStorageError;
 
 export const safeStorage = {
   getRaw(key) {
@@ -51,8 +56,10 @@ export const safeStorage = {
     if (!storageAvailable()) return false;
     try {
       localStorage.setItem(key, String(value));
+      lastStorageError = null;
       return true;
-    } catch {
+    } catch (error) {
+      lastStorageError = { code: 'STORAGE_WRITE_FAILED', message: error?.message || 'localStorage gagal ditulis.' };
       return false;
     }
   },
@@ -60,7 +67,10 @@ export const safeStorage = {
   setJson(key, value) {
     const sanitized = sanitizePersistedValue(value);
     const serialized = JSON.stringify(sanitized);
-    if (serialized.length > MAX_STORAGE_BYTES) return false;
+    if (serialized.length > MAX_STORAGE_BYTES) {
+      lastStorageError = { code: 'STORAGE_CAPACITY_LIMIT', message: 'Data lokal melebihi batas aman penyimpanan.' };
+      return false;
+    }
     return this.setRaw(key, serialized);
   },
 

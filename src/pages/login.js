@@ -35,8 +35,8 @@ export const renderLogin = ({ navigate }) => {
 
           <form data-login-form class="mt-7 space-y-4" novalidate>
             <label><span class="form-label">Email *</span><input type="email" name="email" class="form-input" autocomplete="email" /><p data-error-for="email" class="field-error"></p></label>
-            <label><span class="form-label">Kata Sandi *</span><div class="relative"><input type="password" name="password" class="form-input pr-12" autocomplete="current-password" /><button type="button" data-toggle-password class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><i data-lucide="Eye" class="size-4"></i></button></div><p data-error-for="password" class="field-error"></p></label>
-            <div class="flex items-center justify-between gap-3 text-sm"><label class="flex items-center gap-2"><input type="checkbox" checked class="size-4 accent-brand-600" />Ingat saya</label><button type="button" class="font-bold text-brand-600">Lupa sandi?</button></div>
+            <label><span class="form-label">Kata Sandi *</span><div class="relative"><input type="password" name="password" class="form-input pr-12" autocomplete="current-password" /><button type="button" data-toggle-password class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Tampilkan atau sembunyikan kata sandi"><i data-lucide="Eye" class="size-4"></i></button></div><p data-error-for="password" class="field-error"></p></label>
+            <div class="flex items-center justify-between gap-3 text-sm"><label class="flex items-center gap-2"><input type="checkbox" checked class="size-4 accent-brand-600" />Ingat saya</label><button type="button" data-forgot-password class="font-bold text-brand-600">Lupa sandi?</button></div>
             <button type="submit" class="btn-primary w-full"><i data-lucide="LogIn" class="size-4"></i>Masuk ke Dashboard</button>
           </form>
 
@@ -59,6 +59,9 @@ export const renderLogin = ({ navigate }) => {
   document.querySelector('[data-toggle-password]').addEventListener('click', () => {
     const input = form.elements.password;
     input.type = input.type === 'password' ? 'text' : 'password';
+  });
+  document.querySelector('[data-forgot-password]').addEventListener('click', () => {
+    toast('Hubungi admin sekolah untuk reset kata sandi akun.', 'info');
   });
 
   form.addEventListener('submit', async (event) => {

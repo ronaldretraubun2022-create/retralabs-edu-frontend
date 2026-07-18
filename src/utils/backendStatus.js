@@ -4,6 +4,7 @@ import { escapeHtml } from './format.js';
 const offlineErrorCodes = new Set([
   'NETWORK_ERROR',
   'REQUEST_TIMEOUT',
+  'OFFLINE',
   'BACKEND_UNREACHABLE',
   'HEALTH_CHECK_FAILED',
   'READY_CHECK_FAILED',

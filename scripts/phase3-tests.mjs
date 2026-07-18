@@ -79,8 +79,8 @@ globalThis.localStorage = {
 const { store } = await import('../src/app/store.js');
 
 const migratedState = store.getState();
-assert.equal(migratedState.appVersion, '1.8.0');
-assert.equal(migratedState.schemaVersion, '1.8.0');
+assert.equal(migratedState.appVersion, '2.0.0');
+assert.equal(migratedState.schemaVersion, '2.0.0');
 
 const cp = migratedState.documents.find((document) => document.id === 'DOC-CP-INF-XATPH1-E-01');
 assert.equal(cp.teacherId, 'teacher-smk-ronald');

@@ -67,7 +67,7 @@ export const loadBootstrap = async ({ force = false } = {}) => {
         store.setAuthError(error, false);
         return store.getState();
       }
-      if (apiConfig.enableLocalFallback && ['NETWORK_ERROR', 'REQUEST_TIMEOUT'].includes(error.code)) {
+      if (apiConfig.enableLocalFallback && ['NETWORK_ERROR', 'REQUEST_TIMEOUT', 'OFFLINE'].includes(error.code)) {
         store.setAuthError(error, true);
         return store.getState();
       }
