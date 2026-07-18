@@ -457,8 +457,8 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
             ${compactSourceCard(item, index + 1)}
             ${isMultiSourceType(form.elements.type.value) && !readonly ? `
               <div class="flex gap-1 sm:justify-end">
-                <button type="button" data-source-up="${item.id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Naik"><i data-lucide="ArrowUp" class="size-4"></i></button>
-                <button type="button" data-source-down="${item.id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Turun"><i data-lucide="ArrowDown" class="size-4"></i></button>
+                <button type="button" data-source-up="${item.id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Naik" aria-label="Naikkan urutan sumber"><i data-lucide="ArrowUp" class="size-4"></i></button>
+                <button type="button" data-source-down="${item.id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Turun" aria-label="Turunkan urutan sumber"><i data-lucide="ArrowDown" class="size-4"></i></button>
               </div>
             ` : ''}
           </div>
@@ -566,9 +566,9 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
             <div class="mb-3 flex items-center justify-between gap-3">
               <span class="grid size-8 place-items-center rounded-lg bg-brand-100 text-xs font-black text-brand-700 dark:bg-brand-950 dark:text-brand-300">${index + 1}</span>
               <div class="flex gap-1">
-                <button type="button" data-unit-up="${index}" class="icon-btn size-8 min-h-8 rounded-lg" ${readonly ? 'disabled' : ''} title="Naik"><i data-lucide="ArrowUp" class="size-4"></i></button>
-                <button type="button" data-unit-down="${index}" class="icon-btn size-8 min-h-8 rounded-lg" ${readonly ? 'disabled' : ''} title="Turun"><i data-lucide="ArrowDown" class="size-4"></i></button>
-                <button type="button" data-unit-delete="${index}" class="icon-btn size-8 min-h-8 rounded-lg text-rose-600" ${readonly ? 'disabled' : ''} title="Hapus"><i data-lucide="Trash2" class="size-4"></i></button>
+                <button type="button" data-unit-up="${index}" class="icon-btn size-8 min-h-8 rounded-lg" ${readonly ? 'disabled' : ''} title="Naik" aria-label="Naikkan unit"><i data-lucide="ArrowUp" class="size-4"></i></button>
+                <button type="button" data-unit-down="${index}" class="icon-btn size-8 min-h-8 rounded-lg" ${readonly ? 'disabled' : ''} title="Turun" aria-label="Turunkan unit"><i data-lucide="ArrowDown" class="size-4"></i></button>
+                <button type="button" data-unit-delete="${index}" class="icon-btn size-8 min-h-8 rounded-lg text-rose-600" ${readonly ? 'disabled' : ''} title="Hapus" aria-label="Hapus unit"><i data-lucide="Trash2" class="size-4"></i></button>
               </div>
             </div>
             <input type="hidden" name="unitTpId" value="${escapeHtml(unit.tpId || '')}" />

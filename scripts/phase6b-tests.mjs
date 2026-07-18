@@ -4,15 +4,23 @@ import { readFileSync } from 'node:fs';
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 const packageJson = JSON.parse(read('package.json'));
-assert.equal(packageJson.version, '1.8.0');
+const packageLock = JSON.parse(read('package-lock.json'));
+assert.equal(packageJson.version, '2.0.0');
+assert.equal(packageLock.version, '2.0.0');
+assert.equal(packageLock.packages[''].version, '2.0.0');
 assert.equal(packageJson.scripts.test, 'npm run test:phase2 && npm run test:phase3 && npm run test:phase4 && npm run test:phase5 && npm run test:phase6b');
 
 const envExample = read('.env.example');
+const envProductionExample = read('.env.production.example');
 assert.match(envExample, /VITE_API_BASE_URL=http:\/\/localhost:3000\/api\/v1/);
 assert.match(envExample, /VITE_API_TIMEOUT_MS=30000/);
 assert.match(envExample, /VITE_AUTH_REFRESH_COOKIE=true/);
 assert.match(envExample, /VITE_ENABLE_LOCAL_FALLBACK=true/);
+assert.match(envExample, /VITE_MAINTENANCE_MODE=false/);
+assert.match(envProductionExample, /VITE_APP_ENV=production/);
+assert.match(envProductionExample, /VITE_ENABLE_LOCAL_FALLBACK=false/);
 assert.doesNotMatch(envExample, /SECRET|REFRESH_TOKEN|PASSWORD=/i);
+assert.doesNotMatch(envProductionExample, /SECRET|REFRESH_TOKEN|PASSWORD=/i);
 
 globalThis.localStorage = {
   data: {},
@@ -68,7 +76,8 @@ const api = await import('../src/services/api-client.js');
 const auth = await import('../src/services/auth.js');
 const { store } = await import('../src/app/store.js');
 const { getBackendStatus } = await import('../src/utils/backendStatus.js');
-const { safeStorage, sanitizePersistedValue } = await import('../src/utils/safeStorage.js');
+const { getLastStorageError, safeStorage, sanitizePersistedValue } = await import('../src/utils/safeStorage.js');
+const { appConfig } = await import('../src/config/api.js');
 
 api.setAccessToken('access-token');
 api.setRefreshHandler(() => auth.authService.refresh());
@@ -381,6 +390,9 @@ const sanitizedStorage = sanitizePersistedValue({
 assert.deepEqual(sanitizedStorage, { theme: 'dark', nested: { normal: 'ok' } });
 safeStorage.setJson('safe-storage-test', sanitizedStorage);
 assert.equal(localStorage.getItem('safe-storage-test').includes('blocked'), false);
+assert.equal(safeStorage.setJson('oversized-storage-test', { payload: 'x'.repeat(1_600_000) }), false);
+assert.equal(getLastStorageError().code, 'STORAGE_CAPACITY_LIMIT');
+assert.equal(appConfig.name, 'RetraLabs Edu');
 
 const storeSource = read('src/app/store.js');
 assert.match(storeSource, /MIGRATION_BACKUP_KEY/);
@@ -396,13 +408,21 @@ assert.match(routerSource, /setErrorHandler/);
 
 const documentsPage = read('src/pages/documents.js');
 const documentEditor = read('src/components/documentEditor.js');
+const statusPage = read('src/pages/status.js');
 assert.match(documentsPage, /AbortController/);
 assert.match(documentsPage, /documentService\.list/);
 assert.match(documentEditor, /DOCUMENT_REVISION_CONFLICT|Konflik/i);
 assert.match(documentEditor, /submitWithFormLock/);
+assert.match(statusPage, /renderOffline/);
+assert.match(statusPage, /renderMaintenance/);
+assert.match(statusPage, /renderFatal/);
 
 const mainSource = read('src/main.js');
 assert.match(mainSource, /installGlobalErrorBoundary/);
+assert.match(mainSource, /\/offline/);
+assert.match(mainSource, /\/maintenance/);
+assert.match(mainSource, /\/fatal/);
+assert.match(mainSource, /maintenanceMode/);
 
 const apiClientSource = read('src/services/api-client.js');
 assert.match(apiClientSource, /DEFAULT_MAX_RETRIES/);

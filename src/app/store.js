@@ -4,13 +4,13 @@ import { DEFAULT_SCHOOL_ID, getActiveSchool, phase2DocumentSeeds, phase3Document
 import { defaultPrintSettings, normalizePrintSettings } from '../utils/printConfig.js';
 import { defaultCalendarEvents, normalizeCalendarEvents } from '../utils/academicCalendar.js';
 import { defaultUiPreferences, normalizeUiPreferences } from '../utils/productionUi.js';
-import { safeStorage } from '../utils/safeStorage.js';
+import { getLastStorageError, safeStorage } from '../utils/safeStorage.js';
 
 const STORAGE_KEY = 'retralabs-edu-state-v1';
-const MIGRATION_VERSION = '1.8.0';
-const MIGRATION_MARKER_KEY = 'retralabs-edu-migration-1.8.0';
-const MIGRATION_BACKUP_KEY = 'retralabs-edu-state-backup-before-1.8.0';
-const MIGRATION_REPORT_KEY = 'retralabs-edu-migration-report-1.8.0';
+const MIGRATION_VERSION = '2.0.0';
+const MIGRATION_MARKER_KEY = 'retralabs-edu-migration-2.0.0';
+const MIGRATION_BACKUP_KEY = 'retralabs-edu-state-backup-before-2.0.0';
+const MIGRATION_REPORT_KEY = 'retralabs-edu-migration-report-2.0.0';
 const TRANSIENT_KEYS = new Set([
   'auth',
   'user',
@@ -313,6 +313,7 @@ export const store = {
         schools: current.schools.length,
         localDraft: current.draft ? 1 : 0,
       },
+      storageError: getLastStorageError(),
     };
   },
 
@@ -358,7 +359,7 @@ export const store = {
   },
 
   setAuthError(error, fallbackMode = false) {
-    const connectivityError = ['NETWORK_ERROR', 'REQUEST_TIMEOUT'].includes(error?.code);
+    const connectivityError = ['NETWORK_ERROR', 'REQUEST_TIMEOUT', 'OFFLINE'].includes(error?.code);
     const reachable = Boolean(error?.status && !connectivityError);
     this.setState({
       isAuthenticated: fallbackMode,

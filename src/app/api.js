@@ -98,5 +98,3 @@ export const documentWorkflowApi = {
     return localDocumentApi.generateWithAi(payload);
   },
 };
-
-export const mockApi = documentWorkflowApi;

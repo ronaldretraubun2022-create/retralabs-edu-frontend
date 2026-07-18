@@ -16,6 +16,13 @@ const sanitizeQueryValue = (value) =>
 
 const viteEnv = import.meta.env || {};
 
+export const appConfig = Object.freeze({
+  name: viteEnv.VITE_APP_NAME || 'RetraLabs Edu',
+  environment: viteEnv.VITE_APP_ENV || viteEnv.MODE || 'development',
+  maintenanceMode: parseBoolean(viteEnv.VITE_MAINTENANCE_MODE, false),
+  debugLogs: parseBoolean(viteEnv.VITE_ENABLE_DEBUG_LOGS, false),
+});
+
 export const apiConfig = Object.freeze({
   baseUrl: (viteEnv.VITE_API_BASE_URL || 'http://localhost:3000/api/v1').replace(/\/+$/, ''),
   timeoutMs: parsePositiveInteger(viteEnv.VITE_API_TIMEOUT_MS, 30000),

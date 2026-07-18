@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.0 - 2026-07-19
+
+- Menambahkan mode release readiness dengan versi aplikasi dan schema localStorage `2.0.0`.
+- Menambahkan halaman status `/offline`, `/maintenance`, dan `/fatal` untuk fallback operasional sekolah.
+- Menambahkan konfigurasi environment development/production terpisah, termasuk maintenance mode dan debug flag tanpa secret frontend.
+- Memperkuat global error boundary, router error fallback, offline/online event, API retry/backoff, timeout, dan abort handling.
+- Memperkuat safe localStorage terhadap JSON rusak, schema lama, data sensitif, dan kegagalan tulis/kapasitas.
+- Mengunci aksi async penting agar login, session, notifikasi, dokumen, dan refresh list tidak double submit.
+- Memperbaiki dead button pada login, bank soal, dan toggle keamanan dengan feedback UI yang jelas.
+- Memperbarui README, test release readiness, dan build metadata untuk kandidat rilis v2.0.0.
+
 ## 1.8.0 - 2026-07-18
 
 - Mengintegrasikan konfigurasi Backend API v0.6.0 dengan `VITE_API_BASE_URL`, timeout, refresh cookie, dan fallback lokal.

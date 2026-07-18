@@ -11,12 +11,12 @@ assert.equal(normalizeUiPreferences({ density: 'compact', reduceMotion: true, sh
 assert.match(emptyState({ title: 'Kosong', description: 'Tidak ada data.' }), /empty-state/);
 
 const packageJson = JSON.parse(read('package.json'));
-assert.equal(packageJson.version, '1.8.0');
+assert.equal(packageJson.version, '2.0.0');
 assert.equal(packageJson.scripts['test:phase5'], 'node scripts/phase5-tests.mjs');
 
 const workflow = read('src/utils/workflow.js');
-assert.match(workflow, /APP_VERSION = '1\.8\.0'/);
-assert.match(workflow, /STORAGE_SCHEMA_VERSION = '1\.8\.0'/);
+assert.match(workflow, /APP_VERSION = '2\.0\.0'/);
+assert.match(workflow, /STORAGE_SCHEMA_VERSION = '2\.0\.0'/);
 
 const layout = read('src/components/layout.js');
 assert.match(layout, /skip-link/);
@@ -64,8 +64,8 @@ globalThis.localStorage = {
 
 const { store } = await import('../src/app/store.js');
 const migratedState = store.getState();
-assert.equal(migratedState.appVersion, '1.8.0');
-assert.equal(migratedState.schemaVersion, '1.8.0');
+assert.equal(migratedState.appVersion, '2.0.0');
+assert.equal(migratedState.schemaVersion, '2.0.0');
 assert.deepEqual(migratedState.uiPreferences, defaultUiPreferences);
 assert.equal(migratedState.printSettings.paperSize, 'F4');
 assert.equal(migratedState.school.educationLevel, 'SMK');

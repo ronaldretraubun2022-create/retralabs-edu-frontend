@@ -2,6 +2,7 @@ import { renderLayout } from '../components/layout.js';
 import { questionBank } from '../data/demo.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { toast } from '../components/toast.js';
+import { downloadFile, escapeHtml } from '../utils/format.js';
 import { emptyState } from '../utils/productionUi.js';
 import { required, validateForm, renderErrors } from '../utils/validators.js';
 
@@ -58,6 +59,15 @@ const openQuestionModal = (onSaved) => {
   });
 };
 
+const exportQuestionBank = (item) => {
+  downloadFile(
+    `bank-soal-${String(item.subject || 'asesmen').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json`,
+    JSON.stringify(item, null, 2),
+    'application/json;charset=utf-8',
+  );
+  toast('Bank soal berhasil diekspor.', 'success');
+};
+
 export const renderAssessment = () => {
   let search = '';
 
@@ -70,18 +80,28 @@ export const renderAssessment = () => {
           <span class="grid size-11 place-items-center rounded-xl bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"><i data-lucide="ListChecks" class="size-5"></i></span>
           ${difficultyBadge(item.difficulty)}
         </div>
-        <h3 class="mt-4 text-base font-black text-slate-950 dark:text-white">${item.topic}</h3>
-        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">${item.subject}</p>
+        <h3 class="mt-4 text-base font-black text-slate-950 dark:text-white">${escapeHtml(item.topic)}</h3>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">${escapeHtml(item.subject)}</p>
         <div class="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 text-xs dark:bg-slate-950/60">
-          <div><p class="text-slate-500">Jenis</p><p class="mt-1 font-black">${item.type}</p></div>
-          <div><p class="text-slate-500">Jumlah</p><p class="mt-1 font-black">${item.questions} soal</p></div>
+          <div><p class="text-slate-500">Jenis</p><p class="mt-1 font-black">${escapeHtml(item.type)}</p></div>
+          <div><p class="text-slate-500">Jumlah</p><p class="mt-1 font-black">${escapeHtml(item.questions)} soal</p></div>
         </div>
         <div class="mt-4 flex gap-2">
-          <button type="button" class="btn-secondary min-h-9 flex-1 px-3 py-2 text-xs"><i data-lucide="Pencil" class="size-3.5"></i>Edit</button>
-          <button type="button" class="btn-secondary min-h-9 px-3 py-2 text-xs"><i data-lucide="Download" class="size-3.5"></i></button>
+          <button type="button" data-question-action="edit" data-question-id="${escapeHtml(item.id)}" class="btn-secondary min-h-9 flex-1 px-3 py-2 text-xs"><i data-lucide="Pencil" class="size-3.5"></i>Edit</button>
+          <button type="button" data-question-action="export" data-question-id="${escapeHtml(item.id)}" class="btn-secondary min-h-9 px-3 py-2 text-xs" aria-label="Export bank soal"><i data-lucide="Download" class="size-3.5"></i></button>
         </div>
       </article>
     `).join('') || emptyState({ title: 'Bank soal tidak ditemukan', description: 'Ubah kata kunci atau tambah bank soal baru.' });
+    target.querySelectorAll('[data-question-action]').forEach((button) => button.addEventListener('click', () => {
+      const item = questions.find((question) => String(question.id) === String(button.dataset.questionId));
+      if (!item) return;
+      if (button.dataset.questionAction === 'export') {
+        exportQuestionBank(item);
+        return;
+      }
+      openQuestionModal(renderList);
+      toast('Mode edit bank soal akan memakai form yang sama pada integrasi backend.', 'info');
+    }));
     window.dispatchEvent(new CustomEvent('retralabs:icons'));
   };
 
@@ -136,7 +156,7 @@ export const renderAssessment = () => {
                 ['Sumatif', 'FileCheck2', 'Akhir lingkup materi'],
                 ['Projek', 'FolderKanban', 'Produk dan presentasi'],
               ].map(([title, icon, description]) => `
-                <button type="button" class="flex w-full items-center gap-3 rounded-xl border border-slate-200 p-3 text-left transition hover:border-brand-300 hover:bg-brand-50 dark:border-slate-800 dark:hover:border-brand-800 dark:hover:bg-brand-950/20">
+                <button type="button" data-assessment-type="${title}" class="flex w-full items-center gap-3 rounded-xl border border-slate-200 p-3 text-left transition hover:border-brand-300 hover:bg-brand-50 dark:border-slate-800 dark:hover:border-brand-800 dark:hover:bg-brand-950/20">
                   <span class="grid size-9 place-items-center rounded-lg bg-brand-100 text-brand-700 dark:bg-brand-950 dark:text-brand-300"><i data-lucide="${icon}" class="size-4"></i></span>
                   <span><span class="block text-sm font-black">${title}</span><span class="block text-xs text-slate-500">${description}</span></span>
                 </button>
@@ -153,6 +173,9 @@ export const renderAssessment = () => {
     openQuestionModal(renderList);
     toast('Isi parameter bank soal untuk membuat template asesmen.', 'info');
   });
+  document.querySelectorAll('[data-assessment-type]').forEach((button) => button.addEventListener('click', () => {
+    toast(`Mode asesmen ${button.dataset.assessmentType} dipilih.`, 'info');
+  }));
   document.querySelector('[data-question-search]').addEventListener('input', (event) => { search = event.target.value; renderList(); });
   renderList();
 };

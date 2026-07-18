@@ -125,7 +125,7 @@ export const renderSettings = () => {
               ].map(([title, description, checked]) => `
                 <label class="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
                   <span><span class="block font-black">${title}</span><span class="mt-1 block text-sm text-slate-500">${description}</span></span>
-                  <input type="checkbox" ${checked ? 'checked' : ''} class="size-5 accent-brand-600" />
+                  <input type="checkbox" data-security-toggle ${checked ? 'checked' : ''} class="size-5 accent-brand-600" />
                 </label>
               `).join('')}
             </div>
@@ -220,6 +220,9 @@ export const renderSettings = () => {
     });
     toast('Format dokumen berhasil disimpan.', 'success');
   });
+  document.querySelectorAll('[data-security-toggle]').forEach((input) => input.addEventListener('change', () => {
+    toast('Pengaturan keamanan siap disimpan setelah endpoint backend tersedia.', 'info');
+  }));
   document.querySelector('[data-export-backup]').addEventListener('click', () => {
     downloadFile(`retralabs-edu-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(store.getState(), null, 2), 'application/json;charset=utf-8');
     toast('Backup data berhasil diunduh.', 'success');
