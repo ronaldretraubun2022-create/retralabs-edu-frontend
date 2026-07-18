@@ -35,6 +35,8 @@ import {
 import { hideLoading, showLoading } from './loading.js';
 import { closeModal, openModal } from './modal.js';
 import { toast } from './toast.js';
+import { runWithButtonLock, submitWithFormLock } from '../utils/asyncAction.js';
+import { sanitizeText } from '../utils/validators.js';
 
 const phases = ['A', 'B', 'C', 'D', 'E', 'F'];
 const semesters = ['Ganjil', 'Genap', 'Tahunan'];
@@ -385,7 +387,7 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
       const autosaveStatus = root.querySelector('[data-autosave-status]');
       let autosaveTimer;
 
-      const getFormData = () => Object.fromEntries(new FormData(form).entries());
+      const getFormData = () => Object.fromEntries([...new FormData(form).entries()].map(([key, value]) => [key, sanitizeText(value)]));
       const currentValues = () => ({ ...initialValues, ...getFormData(), sourceIds: selectedSourceIds });
 
       const selectedDocs = () => selectedSourceIds.map((id) => findByIdOrCode(store.getState().documents, id)).filter(Boolean);
@@ -689,25 +691,28 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
         renderUnits();
       });
       root.querySelector('[data-save-draft]').addEventListener('click', () => saveDraft(true));
-      root.querySelector('[data-template-draft]').addEventListener('click', async () => {
+      root.querySelector('[data-template-draft]').addEventListener('click', async (event) => {
         const data = currentValues();
         if (!data.subject || !data.topic || !data.className) {
           toast('Pilih mata pelajaran, kelas, dan materi terlebih dahulu.', 'warning');
           return;
         }
-        showLoading('Template sedang menyusun draf');
-        try {
-          const result = await documentWorkflowApi.generateTemplate({ ...data, duration: formatJp(data.totalJp) });
-          form.elements.title.value = result.title || result.output?.title || form.elements.title.value;
-          contentField.value = result.content || result.output?.content || result.preview || contentField.value;
-          count.textContent = `${result.content.length} karakter`;
-          saveDraft();
-          toast('Draf template berhasil dibuat.', 'success');
-        } catch (error) {
-          toast(error.message || 'Template gagal membuat draf.', 'error');
-        } finally {
-          hideLoading();
-        }
+        await runWithButtonLock(event.currentTarget, async () => {
+          showLoading('Template sedang menyusun draf');
+          try {
+            const result = await documentWorkflowApi.generateTemplate({ ...data, duration: formatJp(data.totalJp) });
+            const nextContent = result.content || result.output?.content || result.preview || contentField.value;
+            form.elements.title.value = result.title || result.output?.title || form.elements.title.value;
+            contentField.value = nextContent;
+            count.textContent = `${nextContent.length} karakter`;
+            saveDraft();
+            toast('Draf template berhasil dibuat.', 'success');
+          } catch (error) {
+            toast(error.message || 'Template gagal membuat draf.', 'error');
+          } finally {
+            hideLoading();
+          }
+        });
       });
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -717,57 +722,59 @@ export const openDocumentEditor = ({ type = 'RPP', document = null, sourceDocume
           toast('Periksa kembali data dan sumber dokumen.', 'warning');
           return;
         }
-        showLoading(document ? 'Menyimpan perubahan' : 'Membuat dokumen');
-        try {
-          if (document) {
-            const result = await documentWorkflowApi.updateDocument(document.id, { ...validation.data, revision: document.revision, progress: Math.max(document.progress || 45, 75) });
-            store.updateDocument(document.id, result);
-          } else {
-            const result = await documentWorkflowApi.saveDocument({ ...validation.data, progress: 55 });
-            store.addDocument(result);
-          }
-          store.setState({ draft: null });
-          closeModal();
-          toast(document ? 'Dokumen berhasil diperbarui.' : 'Dokumen baru berhasil dibuat.', 'success');
-          window.dispatchEvent(new CustomEvent('retralabs:documents-changed'));
-        } catch (error) {
-          if (error.code === 'DOCUMENT_REVISION_CONFLICT') {
-            openModal({
-              title: 'Konflik Revisi',
-              description: 'Dokumen sudah berubah di server.',
-              size: 'max-w-md',
-              content: `
-                <div class="space-y-3">
-                  <p class="text-sm text-slate-500 dark:text-slate-400">Pilih muat ulang data server atau simpan salinan lokal agar perubahan tidak hilang.</p>
-                  <button type="button" data-conflict-reload class="btn-primary w-full justify-center"><i data-lucide="RefreshCw" class="size-4"></i>Muat Ulang Data Server</button>
-                  <button type="button" data-conflict-copy class="btn-secondary w-full justify-center"><i data-lucide="CopyPlus" class="size-4"></i>Simpan Salinan Lokal</button>
-                </div>
-              `,
-              onOpen(conflictRoot) {
-                conflictRoot.querySelector('[data-conflict-reload]').addEventListener('click', () => {
-                  closeModal();
-                  window.dispatchEvent(new CustomEvent('retralabs:documents-changed'));
-                });
-                conflictRoot.querySelector('[data-conflict-copy]').addEventListener('click', () => {
-                  store.addDocument({
-                    ...validation.data,
-                    id: `LOCAL-${Date.now()}`,
-                    code: `${validation.data.code}-LOCAL`,
-                    status: 'draft',
-                    syncStatus: 'pending',
-                    updatedAt: new Date().toISOString(),
+        await submitWithFormLock(form, async () => {
+          showLoading(document ? 'Menyimpan perubahan' : 'Membuat dokumen');
+          try {
+            if (document) {
+              const result = await documentWorkflowApi.updateDocument(document.id, { ...validation.data, revision: document.revision, progress: Math.max(document.progress || 45, 75) });
+              store.updateDocument(document.id, result);
+            } else {
+              const result = await documentWorkflowApi.saveDocument({ ...validation.data, progress: 55 });
+              store.addDocument(result);
+            }
+            store.setState({ draft: null });
+            closeModal();
+            toast(document ? 'Dokumen berhasil diperbarui.' : 'Dokumen baru berhasil dibuat.', 'success');
+            window.dispatchEvent(new CustomEvent('retralabs:documents-changed'));
+          } catch (error) {
+            if (error.code === 'DOCUMENT_REVISION_CONFLICT') {
+              openModal({
+                title: 'Konflik Revisi',
+                description: 'Dokumen sudah berubah di server.',
+                size: 'max-w-md',
+                content: `
+                  <div class="space-y-3">
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Pilih muat ulang data server atau simpan salinan lokal agar perubahan tidak hilang.</p>
+                    <button type="button" data-conflict-reload class="btn-primary w-full justify-center"><i data-lucide="RefreshCw" class="size-4"></i>Muat Ulang Data Server</button>
+                    <button type="button" data-conflict-copy class="btn-secondary w-full justify-center"><i data-lucide="CopyPlus" class="size-4"></i>Simpan Salinan Lokal</button>
+                  </div>
+                `,
+                onOpen(conflictRoot) {
+                  conflictRoot.querySelector('[data-conflict-reload]').addEventListener('click', () => {
+                    closeModal();
+                    window.dispatchEvent(new CustomEvent('retralabs:documents-changed'));
                   });
-                  closeModal();
-                  window.dispatchEvent(new CustomEvent('retralabs:documents-changed'));
-                });
-              },
-            });
-            return;
+                  conflictRoot.querySelector('[data-conflict-copy]').addEventListener('click', () => {
+                    store.addDocument({
+                      ...validation.data,
+                      id: `LOCAL-${Date.now()}`,
+                      code: `${validation.data.code}-LOCAL`,
+                      status: 'draft',
+                      syncStatus: 'pending',
+                      updatedAt: new Date().toISOString(),
+                    });
+                    closeModal();
+                    window.dispatchEvent(new CustomEvent('retralabs:documents-changed'));
+                  });
+                },
+              });
+              return;
+            }
+            toast(friendlyApiMessage(error), 'error');
+          } finally {
+            hideLoading();
           }
-          toast(friendlyApiMessage(error), 'error');
-        } finally {
-          hideLoading();
-        }
+        });
       });
 
       selectedDocs().forEach(inheritMetadata);

@@ -6,6 +6,9 @@ const ensureRoot = () => {
     root = document.createElement('div');
     root.id = 'loading-root';
     root.className = 'fixed inset-0 z-[120] hidden items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm';
+    root.setAttribute('role', 'status');
+    root.setAttribute('aria-live', 'polite');
+    root.setAttribute('aria-busy', 'false');
     root.innerHTML = `
       <div class="flex items-center gap-4 rounded-2xl border border-white/10 bg-slate-900 px-5 py-4 text-white shadow-2xl">
         <span class="relative size-10">
@@ -27,8 +30,10 @@ export const showLoading = (title = 'Memproses data') => {
   counter += 1;
   const root = ensureRoot();
   root.querySelector('[data-loading-title]').textContent = title;
+  root.setAttribute('aria-busy', 'true');
   root.classList.remove('hidden');
   root.classList.add('flex');
+  document.body.setAttribute('aria-busy', 'true');
 };
 
 export const hideLoading = () => {
@@ -37,4 +42,6 @@ export const hideLoading = () => {
   const root = ensureRoot();
   root.classList.add('hidden');
   root.classList.remove('flex');
+  root.setAttribute('aria-busy', 'false');
+  document.body.removeAttribute('aria-busy');
 };

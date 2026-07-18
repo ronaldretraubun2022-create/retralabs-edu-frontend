@@ -2,6 +2,7 @@ import { friendlyApiMessage } from '../app/bootstrap.js';
 import { unwrapList, unwrapMeta } from '../app/backend-mappers.js';
 import { renderLayout } from '../components/layout.js';
 import { toast } from '../components/toast.js';
+import { bindAsyncClick, setElementBusy } from '../utils/asyncAction.js';
 import { escapeHtml, formatDateTime } from '../utils/format.js';
 import { emptyState } from '../utils/productionUi.js';
 
@@ -42,6 +43,8 @@ export const renderApiListPage = ({ path, title, subtitle, service, columns, emp
   const load = async () => {
     const body = document.querySelector('[data-api-list-body]');
     const metaTarget = document.querySelector('[data-api-list-meta]');
+    const refreshButton = document.querySelector('[data-api-list-refresh]');
+    setElementBusy(refreshButton, true);
     body.innerHTML = `<tr><td colspan="${columns.length}"><div class="p-6 text-sm font-bold text-slate-500">Memuat...</div></td></tr>`;
     try {
       const result = await service({ page: 1, limit: 50, ...query });
@@ -56,9 +59,10 @@ export const renderApiListPage = ({ path, title, subtitle, service, columns, emp
       body.innerHTML = `<tr><td colspan="${columns.length}">${emptyState({ title: friendlyApiMessage(error), description: error.requestId ? `Request ID: ${error.requestId}` : 'Gunakan tombol refresh untuk mencoba ulang.' })}</td></tr>`;
       toast(friendlyApiMessage(error), 'error');
     }
+    setElementBusy(refreshButton, false);
     window.dispatchEvent(new CustomEvent('retralabs:icons'));
   };
 
-  document.querySelector('[data-api-list-refresh]').addEventListener('click', load);
+  bindAsyncClick(document.querySelector('[data-api-list-refresh]'), load);
   load();
 };

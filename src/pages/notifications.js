@@ -4,6 +4,7 @@ import { unwrapList } from '../app/backend-mappers.js';
 import { renderLayout } from '../components/layout.js';
 import { toast } from '../components/toast.js';
 import { notificationService } from '../services/domain-services.js';
+import { bindAsyncClick, runWithButtonLock } from '../utils/asyncAction.js';
 import { escapeHtml, formatDateTime } from '../utils/format.js';
 import { emptyState } from '../utils/productionUi.js';
 
@@ -47,10 +48,12 @@ export const renderNotifications = () => {
         </article>
       `).join('') : emptyState({ title: 'Tidak ada notifikasi', description: 'Notifikasi user atau sekolah lain tidak ditampilkan.' });
       target.querySelectorAll('[data-mark-read]').forEach((button) => button.addEventListener('click', async () => {
-        await notificationService.markRead(button.dataset.markRead);
-        const unread = Math.max(Number(store.getState().notifications?.unreadCount || 0) - 1, 0);
-        store.setState({ notifications: { unreadCount: unread } }, { persist: false });
-        load();
+        await runWithButtonLock(button, async () => {
+          await notificationService.markRead(button.dataset.markRead);
+          const unread = Math.max(Number(store.getState().notifications?.unreadCount || 0) - 1, 0);
+          store.setState({ notifications: { unreadCount: unread } }, { persist: false });
+          load();
+        });
       }));
     } catch (error) {
       meta.textContent = error.requestId ? `Request ID: ${error.requestId}` : 'Request gagal';
@@ -59,7 +62,7 @@ export const renderNotifications = () => {
     window.dispatchEvent(new CustomEvent('retralabs:icons'));
   };
 
-  document.querySelector('[data-read-all]').addEventListener('click', async () => {
+  bindAsyncClick(document.querySelector('[data-read-all]'), async () => {
     try {
       await notificationService.readAll();
       store.setState({ notifications: { unreadCount: 0 } }, { persist: false });

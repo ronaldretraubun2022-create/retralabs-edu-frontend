@@ -75,6 +75,16 @@
     @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition duration-200 focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
+  .btn.is-processing,
+  .icon-btn.is-processing {
+    @apply pointer-events-none opacity-70;
+  }
+
+  .btn.is-processing i,
+  .icon-btn.is-processing i {
+    @apply animate-spin;
+  }
+
   .btn-primary {
     @apply btn bg-brand-600 text-white shadow-lg shadow-brand-600/20 hover:-translate-y-0.5 hover:bg-brand-700 focus:ring-brand-200 dark:focus:ring-brand-900;
   }
@@ -177,6 +187,10 @@
 
   .empty-state {
     @apply col-span-full rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-700;
+  }
+
+  .retry-state {
+    @apply rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100;
   }
 }
 

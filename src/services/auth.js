@@ -1,6 +1,8 @@
 import { apiConfig } from '../config/api.js';
 import { apiClient, clearAccessToken, setAccessToken } from './api-client.js';
 
+const REFRESH_TOKEN_FIELD = 'refreshToken';
+
 const tokenFrom = (result) =>
   result?.data?.tokens?.accessToken ||
   result?.data?.accessToken ||
@@ -9,7 +11,7 @@ const tokenFrom = (result) =>
   result?.accessToken ||
   null;
 
-let refreshToken = null;
+let refreshCredential = null;
 
 const refreshTokenFrom = (result) =>
   result?.data?.tokens?.refreshToken ||
@@ -20,11 +22,11 @@ const refreshTokenFrom = (result) =>
 
 const syncTokens = (result) => {
   setAccessToken(tokenFrom(result));
-  refreshToken = refreshTokenFrom(result) || refreshToken;
+  refreshCredential = refreshTokenFrom(result) || refreshCredential;
 };
 
 const clearTokens = () => {
-  refreshToken = null;
+  refreshCredential = null;
   clearAccessToken();
 };
 
@@ -36,7 +38,7 @@ export const authService = {
   },
 
   async refresh() {
-    const body = refreshToken ? { refreshToken } : {};
+    const body = refreshCredential ? { [REFRESH_TOKEN_FIELD]: refreshCredential } : {};
     const result = await apiClient.post('/auth/refresh', body, { retryOnAuth: false });
     syncTokens(result);
     return result;
@@ -44,7 +46,7 @@ export const authService = {
 
   async logout() {
     try {
-      return await apiClient.post('/auth/logout', refreshToken ? { refreshToken } : {}, { retryOnAuth: false });
+      return await apiClient.post('/auth/logout', refreshCredential ? { [REFRESH_TOKEN_FIELD]: refreshCredential } : {}, { retryOnAuth: false });
     } finally {
       clearTokens();
     }

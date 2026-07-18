@@ -4,6 +4,7 @@ import { store } from '../app/store.js';
 import { authService } from '../services/auth.js';
 import { notificationService } from '../services/domain-services.js';
 import { getActiveSchool } from '../utils/education.js';
+import { bindAsyncClick, runWithButtonLock } from '../utils/asyncAction.js';
 import { escapeHtml } from '../utils/format.js';
 import { closeModal, openModal } from './modal.js';
 import { toast } from './toast.js';
@@ -84,23 +85,25 @@ export const bindTopbar = () => {
 
   document.querySelector('[data-school-switcher]')?.addEventListener('change', async (event) => {
     const schoolId = event.currentTarget.value;
-    try {
-      if (store.getState().api?.online) {
-        store.clearTenantCache();
-        await authService.setActiveSchool(schoolId);
-        await loadBootstrap({ force: true });
-      } else {
-        store.switchSchool(schoolId);
+    await runWithButtonLock(event.currentTarget, async () => {
+      try {
+        if (store.getState().api?.online) {
+          store.clearTenantCache();
+          await authService.setActiveSchool(schoolId);
+          await loadBootstrap({ force: true });
+        } else {
+          store.switchSchool(schoolId);
+        }
+        toast('Sekolah aktif berhasil diganti.', 'success');
+        setTimeout(() => window.dispatchEvent(new Event('hashchange')), 50);
+      } catch (error) {
+        toast(friendlyApiMessage(error), 'error');
+        setTimeout(() => window.dispatchEvent(new Event('hashchange')), 50);
       }
-      toast('Sekolah aktif berhasil diganti.', 'success');
-      setTimeout(() => window.dispatchEvent(new Event('hashchange')), 50);
-    } catch (error) {
-      toast(friendlyApiMessage(error), 'error');
-      setTimeout(() => window.dispatchEvent(new Event('hashchange')), 50);
-    }
+    });
   });
 
-  document.querySelector('[data-notification-button]')?.addEventListener('click', async () => {
+  bindAsyncClick(document.querySelector('[data-notification-button]'), async () => {
     if (store.getState().api?.online) {
       const result = await notificationService.unreadCount().catch(() => null);
       const unreadCount = Number(result?.data?.count ?? result?.data?.unreadCount ?? store.getState().notifications?.unreadCount ?? 0);
@@ -137,19 +140,22 @@ export const bindTopbar = () => {
       onOpen(root) {
         root.querySelector('[data-mobile-school-switcher]').addEventListener('change', (event) => {
           const schoolId = event.currentTarget.value;
-          const switchPromise = store.getState().api?.online
-            ? Promise.resolve().then(() => {
-              store.clearTenantCache();
-              return authService.setActiveSchool(schoolId).then(() => loadBootstrap({ force: true }));
-            })
-            : Promise.resolve(store.switchSchool(schoolId));
-          switchPromise
-            .then(() => {
+          runWithButtonLock(event.currentTarget, async () => {
+            try {
+              if (store.getState().api?.online) {
+                store.clearTenantCache();
+                await authService.setActiveSchool(schoolId);
+                await loadBootstrap({ force: true });
+              } else {
+                store.switchSchool(schoolId);
+              }
               closeModal();
               toast('Sekolah aktif berhasil diganti.', 'success');
               setTimeout(() => window.dispatchEvent(new Event('hashchange')), 50);
-            })
-            .catch((error) => toast(friendlyApiMessage(error), 'error'));
+            } catch (error) {
+              toast(friendlyApiMessage(error), 'error');
+            }
+          });
         });
         root.querySelector('[data-mobile-global-search]').addEventListener('keydown', (event) => {
           if (event.key !== 'Enter') return;

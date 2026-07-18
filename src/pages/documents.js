@@ -6,6 +6,7 @@ import { renderLayout } from '../components/layout.js';
 import { openDocumentEditor } from '../components/documentEditor.js';
 import { closeModal, openModal } from '../components/modal.js';
 import { toast } from '../components/toast.js';
+import { runWithButtonLock } from '../utils/asyncAction.js';
 import { escapeHtml, formatDateTime } from '../utils/format.js';
 import { canUseLocalFallback } from '../utils/backendStatus.js';
 import { filterDocumentsBySchool, getActiveSchool } from '../utils/education.js';
@@ -108,27 +109,29 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
       `,
       onOpen(root) {
         ['review', 'revision', 'approved', 'archived'].forEach((nextStatus) => {
-          root.querySelector(`[data-more-action="${nextStatus}"]`).addEventListener('click', async () => {
-            try {
-              const state = store.getState();
-              if (state.api?.online) {
-                const actionMap = {
-                  review: () => documentService.submitReview(item.id),
-                  revision: () => documentService.requestRevision(item.id, { note: 'Request revision dari frontend.' }),
-                  approved: () => documentService.approve(item.id, { note: 'Approved dari frontend.' }),
-                  archived: () => documentService.archive(item.id),
-                };
-                await actionMap[nextStatus]();
-              } else if (!canUseLocalFallback(state)) {
-                throw new Error('Backend aktif tetapi session belum online. Login ulang sebelum mengubah dokumen.');
+          root.querySelector(`[data-more-action="${nextStatus}"]`).addEventListener('click', async (event) => {
+            await runWithButtonLock(event.currentTarget, async () => {
+              try {
+                const state = store.getState();
+                if (state.api?.online) {
+                  const actionMap = {
+                    review: () => documentService.submitReview(item.id),
+                    revision: () => documentService.requestRevision(item.id, { note: 'Request revision dari frontend.' }),
+                    approved: () => documentService.approve(item.id, { note: 'Approved dari frontend.' }),
+                    archived: () => documentService.archive(item.id),
+                  };
+                  await actionMap[nextStatus]();
+                } else if (!canUseLocalFallback(state)) {
+                  throw new Error('Backend aktif tetapi session belum online. Login ulang sebelum mengubah dokumen.');
+                }
+                store.updateDocument(item.id, { status: nextStatus, progress: nextStatus === 'approved' ? 100 : item.progress });
+                closeModal();
+                renderRows(true);
+                toast('Status dokumen berhasil diperbarui.', 'success');
+              } catch (error) {
+                toast(friendlyApiMessage(error), 'error');
               }
-              store.updateDocument(item.id, { status: nextStatus, progress: nextStatus === 'approved' ? 100 : item.progress });
-              closeModal();
-              renderRows(true);
-              toast('Status dokumen berhasil diperbarui.', 'success');
-            } catch (error) {
-              toast(friendlyApiMessage(error), 'error');
-            }
+            });
           });
         });
         root.querySelector('[data-more-action="duplicate"]').addEventListener('click', () => {
@@ -164,7 +167,7 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
           exportDocumentJson(item);
           toast('Data JSON berhasil diekspor.', 'success');
         });
-        root.querySelector('[data-more-action="delete"]').addEventListener('click', () => {
+        root.querySelector('[data-more-action="delete"]').addEventListener('click', (event) => {
           const state = store.getState();
           if (!state.api?.online && !canUseLocalFallback(state)) {
             toast('Backend aktif tetapi session belum online. Login ulang sebelum menghapus dokumen.', 'warning');
@@ -175,14 +178,14 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
             showProtectedDelete(children);
             return;
           }
-          Promise.resolve(state.api?.online ? documentService.remove(item.id) : null)
+          runWithButtonLock(event.currentTarget, () => Promise.resolve(state.api?.online ? documentService.remove(item.id) : null)
             .then(() => {
               store.deleteDocument(item.id);
               closeModal();
               renderRows(true);
               toast('Dokumen dipindahkan dari daftar.', 'success');
             })
-            .catch((error) => toast(friendlyApiMessage(error), 'error'));
+            .catch((error) => toast(friendlyApiMessage(error), 'error')));
         });
       },
     });
@@ -190,7 +193,7 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
 
   const bindActions = (renderRows) => {
     document.querySelectorAll('[data-action]').forEach((button) => {
-      button.addEventListener('click', () => {
+      button.addEventListener('click', () => runWithButtonLock(button, async () => {
         const item = findDocument(button.dataset.id);
         if (!item) return;
         if (button.dataset.action === 'edit') {
@@ -203,7 +206,7 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
         if (button.dataset.action === 'continue') showContinueActions(item);
         if (button.dataset.action === 'export') exportDocument(item);
         if (button.dataset.action === 'more') showMoreActions(item, renderRows);
-      });
+      }));
     });
   };
 
@@ -228,7 +231,7 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
       store.setState({ documents: unwrapList(result).map(normalizeDocumentFromApi) }, { persist: false });
       afterLoad();
     } catch (error) {
-      if (error.name === 'AbortError') return;
+      if (error.name === 'AbortError' || error.code === 'REQUEST_ABORTED') return;
       toast(friendlyApiMessage(error), 'error');
       afterLoad();
     }

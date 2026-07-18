@@ -8,6 +8,8 @@ const ensureRoot = () => {
     root = document.createElement('div');
     root.id = 'toast-root';
     root.className = 'fixed right-4 top-4 z-[100] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-3 sm:right-6 sm:top-6';
+    root.setAttribute('aria-live', 'polite');
+    root.setAttribute('aria-atomic', 'false');
     document.body.append(root);
   }
   return root;
@@ -25,6 +27,7 @@ export const toast = (message, tone = 'success', duration = 3200) => {
   const config = tones[tone] || tones.info;
   const item = document.createElement('div');
   item.className = `animate-slide-up rounded-2xl border p-4 shadow-2xl backdrop-blur ${config.style}`;
+  item.setAttribute('role', tone === 'error' ? 'alert' : 'status');
   item.innerHTML = `
     <div class="flex items-start gap-3">
       <span class="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-current/10">

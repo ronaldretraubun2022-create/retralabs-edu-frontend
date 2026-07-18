@@ -1,6 +1,7 @@
 const routes = new Map();
 let currentCleanup = null;
 let authGuard = null;
+let errorHandler = null;
 let started = false;
 let resolveSequence = 0;
 
@@ -19,6 +20,11 @@ export const router = {
     return this;
   },
 
+  setErrorHandler(handler) {
+    errorHandler = handler;
+    return this;
+  },
+
   register(path, handler) {
     routes.set(path, handler);
     return this;
@@ -31,24 +37,29 @@ export const router = {
   async resolve() {
     const sequence = ++resolveSequence;
     const { path, query } = parseLocation();
-    if (authGuard) {
-      const allowed = await authGuard({ path, query, navigate: this.navigate.bind(this) });
+    try {
+      if (authGuard) {
+        const allowed = await authGuard({ path, query, navigate: this.navigate.bind(this) });
+        if (sequence !== resolveSequence) return;
+        if (!allowed) return;
+      }
+      const handler = routes.get(path) || routes.get('/404');
+
+      if (typeof currentCleanup === 'function') {
+        currentCleanup();
+        currentCleanup = null;
+      }
+
+      const result = await handler?.({ path, query, navigate: this.navigate.bind(this) });
+      if (sequence !== resolveSequence) {
+        if (typeof result === 'function') result();
+        return;
+      }
+      if (typeof result === 'function') currentCleanup = result;
+    } catch (error) {
       if (sequence !== resolveSequence) return;
-      if (!allowed) return;
+      errorHandler?.({ error, path, query, navigate: this.navigate.bind(this), retry: () => this.resolve() });
     }
-    const handler = routes.get(path) || routes.get('/404');
-
-    if (typeof currentCleanup === 'function') {
-      currentCleanup();
-      currentCleanup = null;
-    }
-
-    const result = await handler?.({ path, query, navigate: this.navigate.bind(this) });
-    if (sequence !== resolveSequence) {
-      if (typeof result === 'function') result();
-      return;
-    }
-    if (typeof result === 'function') currentCleanup = result;
   },
 
   start() {
