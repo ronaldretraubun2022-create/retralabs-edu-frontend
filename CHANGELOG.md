@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.8.0 - 2026-07-18
+
+- Mengintegrasikan konfigurasi Backend API v0.6.0 dengan `VITE_API_BASE_URL`, timeout, refresh cookie, dan fallback lokal.
+- Menambahkan API client fetch terpusat dengan Bearer access token memory-only, credentials include, requestId, idempotency key, AbortController timeout, JSON/blob parsing, dan error object konsisten.
+- Menambahkan auth login, refresh tunggal untuk request concurrent, logout, logout semua perangkat, daftar sesi, dan active school switch berbasis backend.
+- Menambahkan bootstrap `/api/v1/bootstrap` sebagai sumber user, sekolah aktif, permissions, feature flags, subscription, quota, notification count, dan versi backend.
+- Menambahkan service layer untuk auth, bootstrap, dokumen, approval, attachment, export, AI, billing, usage, audit, notification, user, school, tenant, dan membership.
+- Menghubungkan dokumen ke backend saat online dengan pagination/search/filter, debounce, abort request lama, revision conflict dialog, dan fallback lokal saat network unavailable.
+- Menambahkan route Phase 6B: approvals, notifications, AI, subscription, payments, usage, audit, sessions, dan migration.
+- Menambahkan permission/feature guard untuk menu dan aksi dokumen.
+- Menambahkan migration report, backup localStorage sebelum schema 1.8.0, marker idempotent, dan halaman migrasi opt-in.
+- Menambahkan test Phase 6B, lint minimal, script `test`, dan dokumentasi operasional backend/frontend.
+
 ## 1.7.0 - 2026-07-18
 
 - Menambahkan shell UI production dengan skip link, konteks halaman, mobile action sheet, dan sidebar sekolah aktif.

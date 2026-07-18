@@ -1,5 +1,8 @@
 import { currentUser } from '../data/demo.js';
+import { friendlyApiMessage, loadBootstrap } from '../app/bootstrap.js';
 import { store } from '../app/store.js';
+import { authService } from '../services/auth.js';
+import { notificationService } from '../services/domain-services.js';
 import { getActiveSchool } from '../utils/education.js';
 import { escapeHtml } from '../utils/format.js';
 import { closeModal, openModal } from './modal.js';
@@ -9,6 +12,9 @@ export const topbarTemplate = ({ title, subtitle }) => {
   const state = store.getState();
   const activeSchool = getActiveSchool(state);
   const schools = state.schools || [];
+  const user = state.user || currentUser;
+  const initials = user.initials || String(user.name || user.email || 'U').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+  const unreadCount = Number(state.notifications?.unreadCount || 0);
   return `
   <header class="sticky top-0 z-30 border-b border-slate-200/80 bg-slate-100/85 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/85">
     <div class="flex min-h-20 items-center gap-3 px-4 sm:px-6 xl:px-8">
@@ -43,14 +49,14 @@ export const topbarTemplate = ({ title, subtitle }) => {
 
         <button type="button" data-notification-button class="icon-btn relative" aria-label="Notifikasi">
           <i data-lucide="Bell" class="size-5"></i>
-          <span class="absolute right-2 top-2 size-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900"></span>
+          ${unreadCount ? `<span class="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-rose-600 px-1.5 text-[10px] font-black text-white ring-2 ring-white dark:ring-slate-900">${unreadCount > 99 ? '99+' : unreadCount}</span>` : ''}
         </button>
 
         <div class="ml-1 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-2 py-1.5 dark:border-slate-800 dark:bg-slate-900">
-          <div class="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-accent-500 text-xs font-black text-white">${currentUser.initials}</div>
+          <div class="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-accent-500 text-xs font-black text-white">${escapeHtml(initials)}</div>
           <div class="hidden pr-2 xl:block">
-            <p class="max-w-32 truncate text-xs font-black text-slate-900 dark:text-white">${escapeHtml(currentUser.name)}</p>
-            <p class="text-[10px] font-semibold text-slate-500">${escapeHtml(currentUser.role)}</p>
+            <p class="max-w-32 truncate text-xs font-black text-slate-900 dark:text-white">${escapeHtml(user.name || user.email || 'User')}</p>
+            <p class="text-[10px] font-semibold text-slate-500">${escapeHtml(state.role || user.role || 'Member')}</p>
           </div>
         </div>
       </div>
@@ -76,14 +82,31 @@ export const bindTopbar = () => {
     toast(`Mode ${nextTheme === 'dark' ? 'gelap' : 'terang'} diaktifkan.`, 'info');
   });
 
-  document.querySelector('[data-school-switcher]')?.addEventListener('change', (event) => {
-    store.switchSchool(event.currentTarget.value);
-    toast('Sekolah aktif berhasil diganti.', 'success');
-    setTimeout(() => window.dispatchEvent(new Event('hashchange')), 50);
+  document.querySelector('[data-school-switcher]')?.addEventListener('change', async (event) => {
+    const schoolId = event.currentTarget.value;
+    try {
+      if (store.getState().api?.online) {
+        store.clearTenantCache();
+        await authService.setActiveSchool(schoolId);
+        await loadBootstrap({ force: true });
+      } else {
+        store.switchSchool(schoolId);
+      }
+      toast('Sekolah aktif berhasil diganti.', 'success');
+      setTimeout(() => window.dispatchEvent(new Event('hashchange')), 50);
+    } catch (error) {
+      toast(friendlyApiMessage(error), 'error');
+      setTimeout(() => window.dispatchEvent(new Event('hashchange')), 50);
+    }
   });
 
-  document.querySelector('[data-notification-button]')?.addEventListener('click', () => {
-    toast('Ada 3 pembaruan dokumen yang perlu diperiksa.', 'info');
+  document.querySelector('[data-notification-button]')?.addEventListener('click', async () => {
+    if (store.getState().api?.online) {
+      const result = await notificationService.unreadCount().catch(() => null);
+      const unreadCount = Number(result?.data?.count ?? result?.data?.unreadCount ?? store.getState().notifications?.unreadCount ?? 0);
+      store.setState({ notifications: { unreadCount } }, { persist: false });
+    }
+    window.location.hash = '/notifications';
   });
 
   document.querySelector('[data-mobile-actions]')?.addEventListener('click', () => {
@@ -113,10 +136,20 @@ export const bindTopbar = () => {
       `,
       onOpen(root) {
         root.querySelector('[data-mobile-school-switcher]').addEventListener('change', (event) => {
-          store.switchSchool(event.currentTarget.value);
-          closeModal();
-          toast('Sekolah aktif berhasil diganti.', 'success');
-          setTimeout(() => window.dispatchEvent(new Event('hashchange')), 50);
+          const schoolId = event.currentTarget.value;
+          const switchPromise = store.getState().api?.online
+            ? Promise.resolve().then(() => {
+              store.clearTenantCache();
+              return authService.setActiveSchool(schoolId).then(() => loadBootstrap({ force: true }));
+            })
+            : Promise.resolve(store.switchSchool(schoolId));
+          switchPromise
+            .then(() => {
+              closeModal();
+              toast('Sekolah aktif berhasil diganti.', 'success');
+              setTimeout(() => window.dispatchEvent(new Event('hashchange')), 50);
+            })
+            .catch((error) => toast(friendlyApiMessage(error), 'error'));
         });
         root.querySelector('[data-mobile-global-search]').addEventListener('keydown', (event) => {
           if (event.key !== 'Enter') return;

@@ -1,3 +1,5 @@
+import { escapeHtml } from '../utils/format.js';
+
 let root;
 
 const ensureRoot = () => {
@@ -29,7 +31,7 @@ export const toast = (message, tone = 'success', duration = 3200) => {
         <i data-lucide="${config.icon}" class="size-5"></i>
       </span>
       <div class="min-w-0 flex-1">
-        <p class="text-sm font-bold">${message}</p>
+        <p class="text-sm font-bold">${escapeHtml(message)}</p>
       </div>
       <button type="button" class="rounded-lg p-1 opacity-60 transition hover:opacity-100" aria-label="Tutup notifikasi">
         <i data-lucide="X" class="size-4"></i>

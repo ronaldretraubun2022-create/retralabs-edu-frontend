@@ -1,13 +1,18 @@
 import { store } from '../app/store.js';
+import { friendlyApiMessage } from '../app/bootstrap.js';
+import { normalizeDocumentFromApi, unwrapList, unwrapMeta } from '../app/backend-mappers.js';
+import { canPerformAction } from '../app/guards.js';
 import { renderLayout } from '../components/layout.js';
 import { openDocumentEditor } from '../components/documentEditor.js';
 import { closeModal, openModal } from '../components/modal.js';
 import { toast } from '../components/toast.js';
 import { escapeHtml, formatDateTime } from '../utils/format.js';
+import { canUseLocalFallback } from '../utils/backendStatus.js';
 import { filterDocumentsBySchool, getActiveSchool } from '../utils/education.js';
 import { exportDocumentAsWord, exportDocumentJson, printDocument, printDocumentList } from '../utils/printEngine.js';
 import { emptyState } from '../utils/productionUi.js';
 import { buildWorkflowIssues, childDocumentsOf, documentTypes, getDocumentCode, nextActions, statusConfig } from '../utils/workflow.js';
+import { documentService } from '../services/documents.js';
 
 const statusBadge = (status) => {
   const [label, className, icon] = statusConfig[status] || statusConfig.draft;
@@ -18,19 +23,25 @@ const workflowBadge = (issues) => issues.length
   ? `<span class="badge-danger" title="${escapeHtml(issues.join(' '))}"><i data-lucide="TriangleAlert" class="size-3.5"></i>Workflow</span>`
   : '';
 
-const documentActions = (id) => `
+const documentActions = (id, item = {}) => {
+  const readonly = ['approved', 'archived'].includes(item.status);
+  return `
   <div class="flex justify-end gap-1">
-    <button type="button" data-action="edit" data-id="${id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Edit" aria-label="Edit dokumen"><i data-lucide="Pencil" class="size-4"></i></button>
-    <button type="button" data-action="continue" data-id="${id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Lanjutkan tahap" aria-label="Lanjutkan tahap dokumen"><i data-lucide="GitBranchPlus" class="size-4"></i></button>
-    <button type="button" data-action="export" data-id="${id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Export Word" aria-label="Export Word"><i data-lucide="Download" class="size-4"></i></button>
+    <button type="button" data-action="edit" data-id="${id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Edit" aria-label="Edit dokumen" ${readonly || !canPerformAction('document.update') ? 'disabled' : ''}><i data-lucide="Pencil" class="size-4"></i></button>
+    <button type="button" data-action="continue" data-id="${id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Lanjutkan tahap" aria-label="Lanjutkan tahap dokumen" ${readonly || !canPerformAction('document.create') ? 'disabled' : ''}><i data-lucide="GitBranchPlus" class="size-4"></i></button>
+    <button type="button" data-action="export" data-id="${id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Export Word" aria-label="Export Word" ${!canPerformAction('document.export') ? 'disabled' : ''}><i data-lucide="Download" class="size-4"></i></button>
     <button type="button" data-action="more" data-id="${id}" class="icon-btn size-9 min-h-9 rounded-lg" title="Tindakan lain" aria-label="Tindakan dokumen lain"><i data-lucide="Ellipsis" class="size-4"></i></button>
   </div>
 `;
+};
 
 export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
   let search = query.get('search') || '';
   let status = 'all';
   let type = 'all';
+  let searchTimer = null;
+  let listController = null;
+  let listMeta = null;
 
   const findDocument = (id) => store.getState().documents.find((item) => item.id === id);
 
@@ -97,14 +108,34 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
       `,
       onOpen(root) {
         ['review', 'revision', 'approved', 'archived'].forEach((nextStatus) => {
-          root.querySelector(`[data-more-action="${nextStatus}"]`).addEventListener('click', () => {
-            store.updateDocument(item.id, { status: nextStatus, progress: nextStatus === 'approved' ? 100 : item.progress });
-            closeModal();
-            renderRows();
-            toast('Status dokumen berhasil diperbarui.', 'success');
+          root.querySelector(`[data-more-action="${nextStatus}"]`).addEventListener('click', async () => {
+            try {
+              const state = store.getState();
+              if (state.api?.online) {
+                const actionMap = {
+                  review: () => documentService.submitReview(item.id),
+                  revision: () => documentService.requestRevision(item.id, { note: 'Request revision dari frontend.' }),
+                  approved: () => documentService.approve(item.id, { note: 'Approved dari frontend.' }),
+                  archived: () => documentService.archive(item.id),
+                };
+                await actionMap[nextStatus]();
+              } else if (!canUseLocalFallback(state)) {
+                throw new Error('Backend aktif tetapi session belum online. Login ulang sebelum mengubah dokumen.');
+              }
+              store.updateDocument(item.id, { status: nextStatus, progress: nextStatus === 'approved' ? 100 : item.progress });
+              closeModal();
+              renderRows(true);
+              toast('Status dokumen berhasil diperbarui.', 'success');
+            } catch (error) {
+              toast(friendlyApiMessage(error), 'error');
+            }
           });
         });
         root.querySelector('[data-more-action="duplicate"]').addEventListener('click', () => {
+          if (!store.getState().api?.online && !canUseLocalFallback(store.getState())) {
+            toast('Backend aktif tetapi session belum online. Login ulang sebelum menduplikasi dokumen.', 'warning');
+            return;
+          }
           store.addDocument({
             ...item,
             id: `DOC-${Date.now().toString().slice(-6)}`,
@@ -134,15 +165,24 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
           toast('Data JSON berhasil diekspor.', 'success');
         });
         root.querySelector('[data-more-action="delete"]').addEventListener('click', () => {
+          const state = store.getState();
+          if (!state.api?.online && !canUseLocalFallback(state)) {
+            toast('Backend aktif tetapi session belum online. Login ulang sebelum menghapus dokumen.', 'warning');
+            return;
+          }
           const children = childDocumentsOf(store.getState().documents, item.id);
           if (children.length) {
             showProtectedDelete(children);
             return;
           }
-          store.deleteDocument(item.id);
-          closeModal();
-          renderRows();
-          toast('Dokumen dipindahkan dari daftar.', 'success');
+          Promise.resolve(state.api?.online ? documentService.remove(item.id) : null)
+            .then(() => {
+              store.deleteDocument(item.id);
+              closeModal();
+              renderRows(true);
+              toast('Dokumen dipindahkan dari daftar.', 'success');
+            })
+            .catch((error) => toast(friendlyApiMessage(error), 'error'));
         });
       },
     });
@@ -167,7 +207,38 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
     });
   };
 
-  const renderRows = () => {
+  const loadServerDocuments = async (afterLoad) => {
+    listController?.abort();
+    listController = new AbortController();
+    const tableBody = document.querySelector('[data-document-table-body]');
+    const mobileList = document.querySelector('[data-document-mobile-list]');
+    if (tableBody) tableBody.innerHTML = '<tr><td colspan="6"><div class="p-6 text-sm font-bold text-slate-500">Memuat dokumen dari backend...</div></td></tr>';
+    if (mobileList) mobileList.innerHTML = '<div class="rounded-2xl border border-slate-200 p-5 text-sm font-bold text-slate-500 dark:border-slate-800">Memuat dokumen...</div>';
+    try {
+      const result = await documentService.list({
+        page: 1,
+        limit: 50,
+        search,
+        status: status === 'all' ? '' : status.toUpperCase(),
+        type: type === 'all' ? '' : type,
+        sortBy: 'updatedAt',
+        sortOrder: 'desc',
+      }, { signal: listController.signal });
+      listMeta = unwrapMeta(result);
+      store.setState({ documents: unwrapList(result).map(normalizeDocumentFromApi) }, { persist: false });
+      afterLoad();
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      toast(friendlyApiMessage(error), 'error');
+      afterLoad();
+    }
+  };
+
+  const renderRows = (syncBackend = false) => {
+    if (syncBackend && store.getState().api?.online) {
+      loadServerDocuments(() => renderRows(false));
+      return;
+    }
     const state = store.getState();
     const activeSchool = getActiveSchool(state);
     const allDocuments = filterDocumentsBySchool(state.documents, activeSchool.id);
@@ -182,7 +253,9 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
     const tableBody = document.querySelector('[data-document-table-body]');
     const mobileList = document.querySelector('[data-document-mobile-list]');
     const resultCount = document.querySelector('[data-result-count]');
-    resultCount.textContent = `${documents.length} dokumen ditemukan`;
+    resultCount.textContent = listMeta
+      ? `${listMeta.total || documents.length} dokumen ditemukan - halaman ${listMeta.page}/${listMeta.totalPages}`
+      : `${documents.length} dokumen ditemukan`;
 
     tableBody.innerHTML = documents.length ? documents.map((item) => {
       const issues = buildWorkflowIssues(item, allDocuments);
@@ -206,7 +279,7 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
             </div>
           </td>
           <td class="whitespace-nowrap text-xs text-slate-500">${formatDateTime(item.updatedAt)}</td>
-          <td>${documentActions(item.id)}</td>
+          <td>${documentActions(item.id, item)}</td>
         </tr>
       `;
     }).join('') : `
@@ -233,7 +306,7 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
           </div>
           <div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
             <span class="text-xs text-slate-400">${formatDateTime(item.updatedAt)}</span>
-            ${documentActions(item.id)}
+            ${documentActions(item.id, item)}
           </div>
         </article>
       `;
@@ -294,15 +367,20 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
     `,
   });
 
-  document.querySelector('[data-document-search]').addEventListener('input', (event) => { search = event.target.value.trim(); renderRows(); });
-  document.querySelector('[data-status-filter]').addEventListener('change', (event) => { status = event.target.value; renderRows(); });
-  document.querySelector('[data-type-filter]').addEventListener('change', (event) => { type = event.target.value; renderRows(); });
+  document.querySelector('[data-document-search]').addEventListener('input', (event) => {
+    search = event.target.value.trim();
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => renderRows(true), 350);
+  });
+  document.querySelector('[data-status-filter]').addEventListener('change', (event) => { status = event.target.value; renderRows(true); });
+  document.querySelector('[data-type-filter]').addEventListener('change', (event) => { type = event.target.value; renderRows(true); });
   document.querySelector('[data-reset-filter]').addEventListener('click', () => {
     search = ''; status = 'all'; type = 'all';
     document.querySelector('[data-document-search]').value = '';
     document.querySelector('[data-status-filter]').value = 'all';
     document.querySelector('[data-type-filter]').value = 'all';
-    renderRows();
+    listMeta = null;
+    renderRows(true);
   });
   document.querySelector('[data-new-document]').addEventListener('click', () => openDocumentEditor({ type: 'RPP' }));
   document.querySelector('[data-print-list]').addEventListener('click', () => {
@@ -316,10 +394,14 @@ export const renderDocuments = ({ query = new URLSearchParams() } = {}) => {
     }
   });
   const changedHandler = () => {
-    if (document.querySelector('[data-document-table-body]')) renderRows();
+    if (document.querySelector('[data-document-table-body]')) renderRows(true);
   };
   window.addEventListener('retralabs:documents-changed', changedHandler);
-  renderRows();
+  renderRows(true);
 
-  return () => window.removeEventListener('retralabs:documents-changed', changedHandler);
+  return () => {
+    listController?.abort();
+    clearTimeout(searchTimer);
+    window.removeEventListener('retralabs:documents-changed', changedHandler);
+  };
 };

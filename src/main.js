@@ -50,6 +50,7 @@ import {
   LifeBuoy,
   ListChecks,
   LogIn,
+  LogOut,
   MapPinned,
   Menu,
   MessageCircleQuestion,
@@ -74,6 +75,7 @@ import {
   Search,
   SearchX,
   Settings2,
+  ShieldAlert,
   ShieldCheck,
   Smartphone,
   Sparkles,
@@ -86,6 +88,8 @@ import {
   Undo2,
   UsersRound,
   Waypoints,
+  Wifi,
+  WifiOff,
   Workflow,
   X,
 } from 'lucide';
@@ -101,9 +105,30 @@ import { renderSettings } from './pages/settings.js';
 import { renderHelp } from './pages/help.js';
 import { renderLogin } from './pages/login.js';
 import { renderNotFound } from './pages/notFound.js';
+import { renderApprovals } from './pages/approvals.js';
+import { renderNotifications } from './pages/notifications.js';
+import { renderAi } from './pages/ai.js';
+import { renderSubscription } from './pages/subscription.js';
+import { renderPayments } from './pages/payments.js';
+import { renderUsage } from './pages/usage.js';
+import { renderAudit } from './pages/audit.js';
+import { renderSessions } from './pages/sessions.js';
+import { renderMigration } from './pages/migration.js';
 import { toast } from './components/toast.js';
+import { friendlyApiMessage, loadBootstrap } from './app/bootstrap.js';
+import { canAccessRoute } from './app/guards.js';
 
-const iconRegistry = {
+const toLucideDomKey = (name) =>
+  name.replace(/(\w)(\w*)(_|-|\s*)/g, (_match, first, rest) => first.toUpperCase() + rest.toLowerCase());
+
+const withLucideDomAliases = (icons) =>
+  Object.entries(icons).reduce((registry, [name, icon]) => {
+    registry[name] = icon;
+    registry[toLucideDomKey(name)] = icon;
+    return registry;
+  }, {});
+
+const iconRegistry = withLucideDomAliases({
   Activity,
   Archive,
   ArrowLeft,
@@ -154,6 +179,7 @@ const iconRegistry = {
   LifeBuoy,
   ListChecks,
   LogIn,
+  LogOut,
   MapPinned,
   Menu,
   MessageCircleQuestion,
@@ -178,6 +204,7 @@ const iconRegistry = {
   Search,
   SearchX,
   Settings2,
+  ShieldAlert,
   ShieldCheck,
   Smartphone,
   Sparkles,
@@ -190,9 +217,11 @@ const iconRegistry = {
   Undo2,
   UsersRound,
   Waypoints,
+  Wifi,
+  WifiOff,
   Workflow,
   X,
-};
+});
 
 const applyTheme = () => {
   const { theme, uiPreferences = {} } = store.getState();
@@ -209,22 +238,63 @@ applyTheme();
 store.subscribe(applyTheme);
 window.addEventListener('retralabs:icons', () => requestAnimationFrame(refreshIcons));
 window.addEventListener('error', (event) => {
-  console.error(event.error || event.message);
+  console.error('ui-error', event.message);
   toast('Terjadi kesalahan pada antarmuka. Silakan muat ulang halaman.', 'error');
 });
 window.addEventListener('unhandledrejection', (event) => {
-  console.error(event.reason);
+  console.error('ui-promise-error');
   toast('Proses tidak dapat diselesaikan.', 'error');
 });
 
+const publicRoutes = new Set(['/login']);
+
 router
+  .setAuthGuard(async ({ path, navigate }) => {
+    if (publicRoutes.has(path)) {
+      if (store.getState().auth?.status === 'authenticated') {
+        navigate('/dashboard');
+        return false;
+      }
+      return true;
+    }
+
+    const currentAuth = store.getState().auth;
+    if (currentAuth?.status === 'unauthenticated') {
+      navigate('/login');
+      return false;
+    }
+
+    const state = await loadBootstrap();
+    if (state.auth?.status === 'unauthenticated') {
+      if (state.auth?.lastError && !state.auth.lastError.silentUnauthenticated) {
+        toast(friendlyApiMessage(state.auth.lastError), 'warning');
+      }
+      navigate('/login');
+      return false;
+    }
+    if (!canAccessRoute(path)) {
+      toast('Akses menu dibatasi oleh permission atau paket aktif.', 'warning');
+      navigate('/dashboard');
+      return false;
+    }
+    return true;
+  })
   .register('/login', renderLogin)
   .register('/dashboard', renderDashboard)
   .register('/curriculum', renderCurriculum)
   .register('/teaching-tools', renderTeachingTools)
   .register('/assessment', renderAssessment)
   .register('/documents', renderDocuments)
+  .register('/approvals', renderApprovals)
+  .register('/notifications', renderNotifications)
+  .register('/ai', renderAi)
+  .register('/subscription', renderSubscription)
+  .register('/payments', renderPayments)
+  .register('/usage', renderUsage)
+  .register('/audit', renderAudit)
   .register('/settings', renderSettings)
+  .register('/settings/sessions', renderSessions)
+  .register('/settings/migration', renderMigration)
   .register('/help', renderHelp)
   .register('/404', renderNotFound)
   .start();

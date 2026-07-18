@@ -1,6 +1,9 @@
 import { store } from '../app/store.js';
+import { checkBackendConnection, friendlyApiMessage, loadBootstrap } from '../app/bootstrap.js';
 import { hideLoading, showLoading } from '../components/loading.js';
 import { toast } from '../components/toast.js';
+import { authService } from '../services/auth.js';
+import { backendStatusLoginCard } from '../utils/backendStatus.js';
 import { renderErrors, required, validateForm } from '../utils/validators.js';
 
 export const renderLogin = ({ navigate }) => {
@@ -27,18 +30,17 @@ export const renderLogin = ({ navigate }) => {
           </div>
           <span class="badge-info mt-6 lg:mt-0"><i data-lucide="ShieldCheck" class="size-3.5"></i>Secure Workspace</span>
           <h2 class="mt-4 text-3xl font-black">Masuk ke akun</h2>
-          <p class="mt-2 text-sm text-slate-500">Gunakan akun demo untuk membuka dashboard.</p>
+          <p class="mt-2 text-sm text-slate-500">Masuk menggunakan akun yang terdaftar di backend RetraLabs Edu.</p>
 
           <form data-login-form class="mt-7 space-y-4" novalidate>
-            <label><span class="form-label">Email *</span><input type="email" name="email" value="admin@retralabs.id" class="form-input" autocomplete="email" /><p data-error-for="email" class="field-error"></p></label>
-            <label><span class="form-label">Kata Sandi *</span><div class="relative"><input type="password" name="password" value="retralabs123" class="form-input pr-12" autocomplete="current-password" /><button type="button" data-toggle-password class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><i data-lucide="Eye" class="size-4"></i></button></div><p data-error-for="password" class="field-error"></p></label>
+            <label><span class="form-label">Email *</span><input type="email" name="email" class="form-input" autocomplete="email" /><p data-error-for="email" class="field-error"></p></label>
+            <label><span class="form-label">Kata Sandi *</span><div class="relative"><input type="password" name="password" class="form-input pr-12" autocomplete="current-password" /><button type="button" data-toggle-password class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><i data-lucide="Eye" class="size-4"></i></button></div><p data-error-for="password" class="field-error"></p></label>
             <div class="flex items-center justify-between gap-3 text-sm"><label class="flex items-center gap-2"><input type="checkbox" checked class="size-4 accent-brand-600" />Ingat saya</label><button type="button" class="font-bold text-brand-600">Lupa sandi?</button></div>
             <button type="submit" class="btn-primary w-full"><i data-lucide="LogIn" class="size-4"></i>Masuk ke Dashboard</button>
           </form>
 
-          <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs dark:border-slate-800 dark:bg-slate-950">
-            <p class="font-black">Akun Demo</p>
-            <p class="mt-1 text-slate-500">admin@retralabs.id - retralabs123</p>
+          <div data-backend-status-card class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs dark:border-slate-800 dark:bg-slate-950">
+            ${backendStatusLoginCard(store.getState())}
           </div>
         </section>
       </div>
@@ -46,6 +48,12 @@ export const renderLogin = ({ navigate }) => {
   `;
 
   window.dispatchEvent(new CustomEvent('retralabs:icons'));
+  checkBackendConnection().then(() => {
+    const statusCard = document.querySelector('[data-backend-status-card]');
+    if (!statusCard) return;
+    statusCard.innerHTML = backendStatusLoginCard(store.getState());
+    window.dispatchEvent(new CustomEvent('retralabs:icons'));
+  });
   const form = document.querySelector('[data-login-form]');
   document.querySelector('[data-toggle-password]').addEventListener('click', () => {
     const input = form.elements.password;
@@ -61,10 +69,20 @@ export const renderLogin = ({ navigate }) => {
     renderErrors(form, validation.errors);
     if (!validation.isValid) return;
     showLoading('Memverifikasi akun');
-    await new Promise((resolve) => setTimeout(resolve, 700));
-    hideLoading();
-    store.setState({ isAuthenticated: true });
-    toast('Login berhasil. Selamat datang di RetraLabs Edu.', 'success');
-    navigate('/dashboard');
+    try {
+      await authService.login(validation.data);
+      const state = await loadBootstrap({ force: true });
+      if (state.auth?.status !== 'authenticated' || state.api?.online !== true) {
+        throw state.auth?.lastError || new Error('Bootstrap backend gagal.');
+      }
+      store.setState({ auth: { ...store.getState().auth, sessionExpired: false } }, { persist: false });
+      toast('Login berhasil.', 'success');
+      navigate('/dashboard');
+    } catch (error) {
+      store.setAuthError(error, false);
+      toast(friendlyApiMessage(error), 'error');
+    } finally {
+      hideLoading();
+    }
   });
 };
