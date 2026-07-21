@@ -81,7 +81,7 @@ export const getBackendStatus = (state = {}) => {
       icon: 'WifiOff',
       badgeClass: 'badge-warning',
       title: `Backend tidak terjangkau di ${baseUrl}`,
-      description: 'Nyalakan backend lokal lalu coba ulang.',
+      description: 'Layanan backend belum tersedia. Coba lagi setelah API aktif.',
     };
   }
 
