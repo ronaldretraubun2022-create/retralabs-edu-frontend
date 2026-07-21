@@ -27,7 +27,7 @@ export const apiErrorMessages = {
   SUBSCRIPTION_EXPIRED: 'Paket berlangganan sudah berakhir.',
   PLAN_LIMIT_EXCEEDED: 'Batas paket sudah tercapai.',
   REQUEST_TIMEOUT: 'Request backend melebihi batas waktu.',
-  NETWORK_ERROR: 'Backend lokal tidak dapat dijangkau.',
+  NETWORK_ERROR: 'Layanan backend tidak dapat dijangkau.',
   OFFLINE: 'Koneksi internet offline. Coba lagi setelah jaringan kembali.',
   REQUEST_ABORTED: 'Request dibatalkan karena navigasi atau refresh data baru.',
   HEALTH_CHECK_FAILED: 'Health check backend gagal.',
